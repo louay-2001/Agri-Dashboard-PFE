@@ -1,0 +1,4 @@
+
+
+i will past here  all files of a NeXTJs application beginning by the name and path of the file and the content of the file each time. The application called frontend it consists of a main page with a left side panel for menu a main panel for leaflet map display a alert panel down the map and a right panel
+your mission as a nextjs expert programmer is to correct the errors which prevent the leaflet map to be displayed and wich is the application is always taking the height of the map as zero here are the files of the project :

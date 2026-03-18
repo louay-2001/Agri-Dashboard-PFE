@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temperature Graph</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+</head>
+<body>
+    <h1>Graphique de Température</h1>
+    <canvas id="temperatureChart" width="400" height="200"></canvas>
+
+    <script>
+        fetch('http://localhost:8091/api/temperature/points')
+            .then(response => response.json())
+            .then(data => {
+                // On transforme les timestamps et les valeurs en arrays séparés
+                const timestamps = data.map(point => point.timestamp);
+                const values = data.map(point => point.value);
+
+                // Créer le graphique avec Chart.js
+                const ctx = document.getElementById('temperatureChart').getContext('2d');
+                const temperatureChart = new Chart(ctx, {
+                    type: 'line', // graphique linéaire
+                    data: {
+                        labels: timestamps, // Étiquettes pour l'axe X (timestamps)
+                        datasets: [{
+                            label: 'Température (°C)',
+                            data: values, // Données pour l'axe Y (températures)
+                            fill: false,
+                            borderColor: 'rgb(75, 192, 192)', // Couleur de la ligne
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: {
+                                type: 'timeseries', // L'axe des X est basé sur des dates
+                                time: {
+                                    unit: 'minute' // Format des dates sur l'axe X
+                                }
+                            },
+                            y: {
+                                beginAtZero: false // L'axe Y commence à zéro
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => console.error('Erreur:', error));
+    </script>
+</body>
+</html>

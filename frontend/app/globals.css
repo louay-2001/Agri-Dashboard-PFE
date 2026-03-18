@@ -1,0 +1,63 @@
+/* Import Tailwind - This handles base, components (now in utilities), and utilities */
+@import "tailwindcss";
+
+/* Your custom theme definitions */
+@theme {
+  --font-sans: var(--font-inter), system-ui, sans-serif; /* Use loaded font variable */
+  /* --font-mono: var(--font-geist-mono); */ /* Uncomment if you load a mono font */
+}
+
+/* Your custom base styles / CSS variables */
+:root {
+  --background: #ffffff;
+  --foreground: #111827; /* text-gray-900 */
+
+  /* Add other CSS variables if needed */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #171717; /* neutral-900 */
+    --foreground: #f5f5f5; /* neutral-100 */
+  }
+}
+
+/* Base body styles - apply AFTER Tailwind directives are processed via @import */
+body {
+  color: var(--foreground);
+  background: var(--background);
+  /* font-family is set by @theme or Tailwind defaults now via font-sans */
+}
+
+
+
+/* Optional: Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1; /* light mode track */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #a3a3a3; /* neutral-400 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #737373; /* neutral-500 */
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #262626; /* neutral-800 - Dark mode scrollbar track */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #525252; /* neutral-600 - Dark mode scrollbar thumb */
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #737373; /* neutral-500 - Dark mode scrollbar thumb hover */
+}

@@ -1,0 +1,698 @@
+Root directory: C:/Dashboard/frontend/app
+
+
+=== globals.css ===
+@import "tailwindcss"; /* RE-ADD THIS LINE */
+
+@theme { /* RE-ADD THIS BLOCK */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Custom scrollbar styling - for a modern look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #262626; /* Dark mode scrollbar track */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #737373; /* Dark mode scrollbar thumb */
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3; /* Dark mode scrollbar thumb hover */
+}
+
+=== head.js ===
+// Using next/font in layout.js is preferred for Google Fonts.
+// Keep Leaflet CSS here if not loaded dynamically or via layout's head tag.
+export default function Head() {
+  return (
+    <>
+      {/* Leaflet CSS - Ensure this path is correct or use npm package + import */}
+      {/* <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" /> */}
+      {/* Removed Google Font links - handled by next/font in layout.js */}
+    </>
+  );
+}
+
+
+=== layout.js ===
+// c:\Dashboard\frontend\app\layout.js
+import './globals.css';
+import localFont from 'next/font/local';
+import '@fortawesome/fontawesome-free/css/all.css';
+import PropTypes from 'prop-types';
+import 'leaflet/dist/leaflet.css'; // <-- IMPORT LEAFLET CSS HERE
+
+const inter = localFont({
+  src: [
+    { path: '../public/fonts/static/Inter_18pt-Regular.ttf', weight: '400', style: 'normal' },
+    { path: '../public/fonts/static/Inter_18pt-SemiBold.ttf', weight: '600', style: 'normal' },
+  ],
+  display: 'swap',
+  variable: '--font-inter',
+});
+
+export const metadata = {
+    title: 'IoT Platform Frontend',
+    description: 'Modern IoT Dashboard',
+};
+
+export default function RootLayout(props) {
+  const { children } = props;
+  return (
+    <html lang="en">
+      <head>
+        {/* --- REMOVE THE <link> TAG FOR LEAFLET --- */}
+        {/* <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" ... /> */}
+      </head>
+      <body className={`${inter.className} bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100`}>
+        {children}
+      </body>
+    </html>
+  );
+}
+
+RootLayout.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+
+=== page.js ===
+// c:\Dashboard\frontend\app\page.js
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Navbar from './components/Navbar'; // Ensure Navbar is used or remove if not needed
+import Sidebar from './components/Sidebar';
+import RightPanel from './components/RightPanel';
+import MapComponent from './components/MapComponent';
+import AlarmConsole from './components/AlarmConsole';
+import ThemeSwitcher from './components/ThemeSwitcher';
+
+// Basic styles for splitters (add more in globals.css)
+const splitterStyles = {
+  vertical: "w-2 bg-neutral-300 dark:bg-neutral-700 cursor-col-resize hover:bg-blue-500 flex-shrink-0",
+  horizontal: "h-2 bg-neutral-300 dark:bg-neutral-700 cursor-row-resize hover:bg-blue-500 flex-shrink-0",
+};
+
+// Define the constant for splitter height (used in resize logic)
+const HORIZONTAL_SPLITTER_HEIGHT = 8; // Tailwind h-2 = 0.5rem = 8px
+
+export default function Home() {
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [alarmConsoleHeight, setAlarmConsoleHeight] = useState(200);
+  const [isResizingVertical, setIsResizingVertical] = useState(false);
+  const [isResizingHorizontal, setIsResizingHorizontal] = useState(false);
+
+  const sidebarRef = useRef(null);
+  const mainContentRef = useRef(null);
+
+  // Toggle dark mode class on <html>
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.classList.toggle('dark', isDarkMode);
+    }
+  }, [isDarkMode]);
+
+  // --- Resizing Handlers (Vertical & Horizontal) ---
+  // ... (Keep all resizing handlers and the useEffect that adds/removes listeners) ...
+  const handleVerticalResizeStart = useCallback((e) => { e.preventDefault(); setIsResizingVertical(true); }, []);
+  const handleVerticalResizeMove = useCallback((e) => { if (!isResizingVertical) return; const newWidth = Math.max(150, Math.min(e.clientX, 500)); setSidebarWidth(newWidth); }, [isResizingVertical]);
+  const handleVerticalResizeEnd = useCallback(() => { setIsResizingVertical(false); }, []);
+  const handleHorizontalResizeStart = useCallback((e) => { e.preventDefault(); setIsResizingHorizontal(true); }, []);
+  const handleHorizontalResizeMove = useCallback((e) => { if (!isResizingHorizontal || !mainContentRef.current) return; const mainContentRect = mainContentRef.current.getBoundingClientRect(); const minMapHeight = 150; const potentialNewHeight = mainContentRect.bottom - e.clientY; const newHeight = Math.max(100, Math.min(potentialNewHeight, mainContentRect.height - minMapHeight - HORIZONTAL_SPLITTER_HEIGHT)); setAlarmConsoleHeight(newHeight); }, [isResizingHorizontal]);
+  const handleHorizontalResizeEnd = useCallback(() => { setIsResizingHorizontal(false); }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => { if (isResizingVertical) handleVerticalResizeMove(e); if (isResizingHorizontal) handleHorizontalResizeMove(e); };
+    const handleMouseUp = () => { if (isResizingVertical) handleVerticalResizeEnd(); if (isResizingHorizontal) handleHorizontalResizeEnd(); };
+    if (isResizingVertical || isResizingHorizontal) { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); }
+    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
+  }, [isResizingVertical, handleVerticalResizeMove, handleVerticalResizeEnd, isResizingHorizontal, handleHorizontalResizeMove, handleHorizontalResizeEnd]);
+  // --- End Resizing Handlers ---
+
+
+  // --- Log mainContentRef height (keep for debugging) ---
+  useEffect(() => {
+    if (mainContentRef.current) {
+      console.log(
+        `page.js useEffect: mainContentRef dimensions: ${mainContentRef.current.offsetWidth} x ${mainContentRef.current.offsetHeight}`
+      );
+    } else {
+      console.log('page.js useEffect: mainContentRef not available yet.');
+    }
+  }, [alarmConsoleHeight]);
+
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+
+      {/* Sidebar */}
+      <Sidebar ref={sidebarRef} width={sidebarWidth} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Vertical Splitter */}
+      <div className={splitterStyles.vertical} onMouseDown={handleVerticalResizeStart} aria-hidden="true" />
+
+      {/* Main Content Area (Map + Alarm Console) */}
+      {/* --- ADD overflow-hidden BACK --- */}
+      <div ref={mainContentRef} className="flex flex-col flex-grow min-h-0 overflow-hidden"> {/* Added overflow-hidden */}
+
+        {/* Map Area - Use flex-grow */}
+        {/* Keep overflow-hidden here too, remove min-h-0 if it was added back previously */}
+        <div className="relative overflow-hidden  h-96"> {/* Ensure no min-h-0 here */}
+          {/* MapComponent still needs ResizeObserver + setTimeout */}
+          <MapComponent />
+        </div>
+
+        {/* Horizontal Splitter */}
+        <div className={splitterStyles.horizontal} onMouseDown={handleHorizontalResizeStart} aria-hidden="true" />
+
+        {/* Alarm Console Area */}
+        <div style={{ height: `${alarmConsoleHeight}px` }} className="overflow-y-auto flex-shrink-0">
+          <AlarmConsole height={alarmConsoleHeight} />
+        </div>
+
+      </div>
+
+      {/* Right Panel */}
+      <div className="w-72 flex-shrink-0 overflow-y-auto border-l border-neutral-200 dark:border-neutral-700">
+        <RightPanel />
+      </div>
+
+      {/* Theme Switcher */}
+      <div className="absolute top-4 right-80 z-50">
+        <ThemeSwitcher isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(prev => !prev)} />
+      </div>
+
+       {/* Mobile Menu Toggle */}
+       <div className="absolute top-4 left-4 z-50 md:hidden">
+         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Toggle Menu">
+            <i className="fas fa-bars fa-lg" aria-hidden="true"></i>
+         </button>
+       </div>
+
+    </div>
+  );
+}
+
+
+=== components/AlarmConsole.jsx ===
+'use client';
+
+import React from 'react';
+import PropTypes from 'prop-types'; // Import PropTypes
+
+// Dummy data for alarms (replace with actual data fetching)
+const dummyAlarms = [
+    { id: 1, timestamp: '2023-10-27 10:00:00', device: 'Sensor A', description: 'High Temperature Detected', severity: 'Critical', status: 'Active' },
+    { id: 2, timestamp: '2023-10-27 10:05:15', device: 'Pump B', description: 'Low Pressure Alert', severity: 'Warning', status: 'Active' },
+    { id: 3, timestamp: '2023-10-27 10:10:30', device: 'Valve C', description: 'Communication Lost', severity: 'Major', status: 'Active' },
+    { id: 4, timestamp: '2023-10-26 15:30:00', device: 'Sensor A', description: 'High Temperature Resolved', severity: 'Info', status: 'Cleared' },
+    // Add more dummy alarms as needed
+];
+
+// Function to get severity color
+const getSeverityClass = (severity) => {
+    switch (severity.toLowerCase()) {
+        case 'critical': return 'text-red-600 dark:text-red-400 font-bold';
+        case 'major': return 'text-orange-600 dark:text-orange-400 font-semibold';
+        case 'warning': return 'text-yellow-600 dark:text-yellow-400';
+        case 'info': return 'text-blue-600 dark:text-blue-400';
+        default: return 'text-neutral-600 dark:text-neutral-400';
+    }
+};
+
+// Function to get status color
+const getStatusClass = (status) => {
+    switch (status.toLowerCase()) {
+        case 'active': return 'text-red-600 dark:text-red-400';
+        case 'acknowledged': return 'text-yellow-600 dark:text-yellow-400';
+        case 'cleared': return 'text-green-600 dark:text-green-400';
+        default: return 'text-neutral-600 dark:text-neutral-400';
+    }
+};
+
+
+function AlarmConsole({ height }) { // Accept height prop
+
+  // Replace with state and actual data fetching later
+  const alarms = dummyAlarms;
+
+  return (
+    // Apply height style and overflow-auto for scrolling within the fixed height
+    <div
+      className="h-full w-full overflow-auto bg-neutral-50 dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700"
+      style={{ height: height ? `${height}px` : 'auto' }} // Use height prop
+    >
+      <div className="p-2"> {/* Add some padding */}
+        <h3 className="text-md font-semibold mb-2 text-neutral-800 dark:text-neutral-100 px-2">Alarm Console</h3>
+        <div className="overflow-x-auto"> {/* Allow horizontal scroll for table */}
+          <table className="min-w-full table-fixed border-collapse text-xs"> {/* Use text-xs or text-sm */}
+            <thead className="bg-neutral-200 dark:bg-neutral-700 sticky top-0 z-10">
+              <tr>
+                {/* Adjust column widths as needed */}
+                <th className="w-1/6 px-2 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">Timestamp</th>
+                <th className="w-1/6 px-2 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">Device</th>
+                <th className="w-2/6 px-2 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">Description</th>
+                <th className="w-1/12 px-2 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">Severity</th>
+                <th className="w-1/12 px-2 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">Status</th>
+                <th className="w-1/6 px-2 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-200">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
+              {alarms.map((alarm) => (
+                <tr key={alarm.id} className="hover:bg-neutral-100 dark:hover:bg-neutral-700">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-neutral-600 dark:text-neutral-400">{alarm.timestamp}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-neutral-800 dark:text-neutral-200">{alarm.device}</td>
+                  <td className="px-2 py-1.5 text-neutral-800 dark:text-neutral-200">{alarm.description}</td>
+                  <td className={`px-2 py-1.5 whitespace-nowrap ${getSeverityClass(alarm.severity)}`}>{alarm.severity}</td>
+                  <td className={`px-2 py-1.5 whitespace-nowrap ${getStatusClass(alarm.status)}`}>{alarm.status}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap">
+                    {/* Example Actions - Implement functionality later */}
+                    <button className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 mr-2 text-xs" aria-label={`Acknowledge alarm ${alarm.id}`}>Ack</button>
+                    <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs" aria-label={`View details for alarm ${alarm.id}`}>Details</button>
+                  </td>
+                </tr>
+              ))}
+              {alarms.length === 0 && (
+                 <tr>
+                    <td colSpan="6" className="text-center py-4 text-neutral-500 dark:text-neutral-400">No active alarms.</td>
+                 </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Add PropTypes
+AlarmConsole.propTypes = {
+  height: PropTypes.number, // Height is optional now, defaults to 'auto' if not provided
+};
+
+export default AlarmConsole;
+
+
+
+=== components/MapComponent.jsx ===
+// c:\Dashboard\frontend\app\components\MapComponent.jsx
+'use client';
+
+import React, { useEffect, useRef, useState } from 'react';
+
+// --- Marker function (can be outside component or memoized if needed) ---
+const addMarker = (map, L, latlng, deviceName, status) => {
+    let iconUrl;
+    switch (status) {
+        case 'Online': iconUrl = '/marker-green.png'; break;
+        case 'Offline': iconUrl = '/marker-red.png'; break;
+        case 'Warning': iconUrl = '/marker-yellow.png'; break;
+        default: iconUrl = '/marker-blue.png'; break; // Default or other statuses
+    }
+
+    const markerIcon = L.icon({
+        iconUrl: iconUrl,
+        shadowUrl: '/marker-shadow.png', // Assuming you have a shadow image
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+        shadowAnchor: [12, 41] // Often same as iconAnchor for default shadow
+    });
+
+    L.marker(latlng, { icon: markerIcon }).addTo(map)
+        .bindPopup(`<b>${deviceName}</b><br>Status: ${status}`);
+};
+// --- End of addMarker function ---
+
+
+function MapComponent({ layoutReady }) { // Add layoutReady prop
+    const mapRef = useRef(null); // Holds the Leaflet map instance
+    const mapContainerRef = useRef(null); // Ref for the container div <div id="mapid">
+    const [isMapInitialized, setIsMapInitialized] = useState(false); // Track initialization
+    const initTimeoutRef = useRef(null); // Ref to store timeout ID
+    const resizeObserverRef = useRef(null);
+    const isObserverActiveRef = useRef(false); // Ref to track if the observer is active
+
+    useEffect(() => {
+        console.log('MapComponent useEffect triggered.');
+
+        // Ensure the container ref is attached and the layout is ready
+        if (!mapContainerRef.current || !layoutReady) {
+            console.log('Map container ref not available yet or layout not ready.');
+            return;
+        }
+
+        const mapElement = mapContainerRef.current; // Use the ref directly
+        let leafletInstance = null; // To store the dynamically imported L
+
+        // --- ResizeObserver Logic ---
+        const resizeObserver = new ResizeObserver(entries => {
+            if (!isObserverActiveRef.current){
+                return;
+            }
+            // We only observe one element, so entries[0] is fine
+            const entry = entries[0];
+            const { width, height } = entry.contentRect;
+
+            console.log(`ResizeObserver: Container dimensions: ${width} x ${height}`);
+
+            // Clear any pending initialization timeout from previous observer calls
+            if (initTimeoutRef.current) {
+                clearTimeout(initTimeoutRef.current);
+                initTimeoutRef.current = null;
+                console.log('Cleared previous init timeout.');
+            }
+
+            // Check dimensions and initialization status
+            if (width > 0 && height > 0 && !mapRef.current && !isMapInitialized) {
+                console.log('Container has dimensions, scheduling map initialization...');
+
+                // --- Use setTimeout to delay initialization slightly ---
+                initTimeoutRef.current = setTimeout(() => {
+                    console.log('setTimeout callback: Attempting to initialize map...');
+                    // Import Leaflet dynamically (inside timeout)
+                    import('leaflet').then(L => {
+                        leafletInstance = L; // Store L for potential cleanup if needed later
+                        console.log('Leaflet imported successfully (in timeout):', L);
+
+                        // Double-check mapRef and dimensions AGAIN just before init
+                        // This check is crucial in case something changed during the timeout
+                        if (mapElement.offsetWidth > 0 && mapElement.offsetHeight > 0 && !mapRef.current) {
+                            try {
+                                console.log('Initializing Leaflet map (in timeout)...');
+                                mapRef.current = L.map(mapElement).setView([51.505, -0.09], 13);
+                                console.log('Leaflet map instance created:', mapRef.current);
+
+                                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                }).addTo(mapRef.current);
+                                console.log('Tile layer added.');
+
+                                // Add Markers (using the function defined outside)
+                                addMarker(mapRef.current, L, [51.505, -0.09], 'Device 1', 'Online');
+                                addMarker(mapRef.current, L, [51.510, -0.10], 'Device 2', 'Offline');
+                                addMarker(mapRef.current, L, [51.495, -0.08], 'Device 3', 'Warning');
+                                console.log('Markers added.');
+
+                                setIsMapInitialized(true); // Mark as initialized
+
+                                // IMPORTANT: Stop observing once initialized
+                                console.log('Map initialized, stopping ResizeObserver.');
+                                resizeObserverRef.current.unobserve(mapElement);
+                                isObserverActiveRef.current = false; // Disable observer
+                            } catch (error) {
+                                console.error('Error initializing Leaflet map (in timeout):', error);
+                            }
+                        } else {
+                            console.log('Skipping initialization inside timeout (map ref exists or dimensions became zero/invalid again).');
+                        }
+                    }).catch(error => {
+                        console.error('Failed to import Leaflet (in timeout):', error);
+                    });
+                }, 100); // Delay of 100 ms pushes it to the next event loop cycle
+                // --- End of setTimeout ---
+
+            } else if (width > 0 && height > 0 && (mapRef.current || isMapInitialized)) {
+                console.log('Container resized, but map already initialized.');
+            } else if (!mapRef.current && !isMapInitialized) {
+                // Only log this if we haven't initialized yet
+                console.log('Container still has zero dimensions.');
+            } else {
+                // Handles cases where map is initialized but dimensions somehow became zero
+                console.log('Observer fired, but map is already initialized or dimensions are zero.');
+            }
+        });
+
+        // Start observing the map container element
+        console.log('Starting ResizeObserver for map container.');
+        resizeObserverRef.current = resizeObserver;
+        isObserverActiveRef.current = true; // Enable observer
+        resizeObserver.observe(mapElement);
+
+        // --- Cleanup Function ---
+        return () => {
+            console.log('MapComponent cleanup: Disconnecting ResizeObserver and removing map.');
+            // Clear timeout on cleanup
+            if (initTimeoutRef.current) {
+                clearTimeout(initTimeoutRef.current);
+            }
+            if (resizeObserverRef.current) {
+                resizeObserverRef.current.disconnect(); // Stop observing
+                isObserverActiveRef.current = false; // Ensure observer is disabled
+            }
+
+            if (mapRef.current) {
+                mapRef.current.remove(); // Clean up Leaflet instance
+                mapRef.current = null;
+            }
+            setIsMapInitialized(false); // Reset initialization state
+        };
+    }, [layoutReady]); // Dependency array now includes layoutReady
+
+    // Assign the ref to the div
+    // Ensure necessary Tailwind classes for layout are present (w-full, h-full)
+    // Remove temporary background color if map appears
+    return <div id="mapid" ref={mapContainerRef} className="w-full h-full min-h-[400px] z-10" />;
+}
+
+export default MapComponent;
+
+
+=== components/Navbar.jsx ===
+import React from 'react';
+import PropTypes from 'prop-types'; // Import PropTypes
+
+// This is a very basic Navbar structure.
+// You might want to integrate ThemeSwitcher here or add branding/user info.
+const Navbar = ({ onMenuClick }) => { // Accept onMenuClick prop
+  return (
+    // Removed outer nav/container as placement is handled in page.js for now
+    // This component now primarily provides the toggle button for mobile
+    // Consider expanding this into a full Navbar later if needed.
+    <button
+      className="md:hidden p-2 m-2 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 fixed top-0 left-0 z-50" // Example positioning
+      onClick={onMenuClick} // Use the passed handler
+      aria-label="Toggle Menu" // Add aria-label
+    >
+      <i className="fas fa-bars fa-lg" aria-hidden="true"></i>
+    </button>
+  );
+};
+
+// Add PropTypes
+Navbar.propTypes = {
+  onMenuClick: PropTypes.func.isRequired,
+};
+
+
+export default Navbar;
+
+
+=== components/RightPanel.jsx ===
+import React from 'react';
+
+function RightPanel() {
+  // Dummy data for device status (replace with actual data fetching)
+  const deviceStatus = [
+    { name: 'Device 1', status: 'Online', signal: 95, temperature: 28 },
+    { name: 'Device 2', status: 'Offline', signal: 20, temperature: 35, alarm: 'High Temperature' },
+    { name: 'Device 3', status: 'Online', signal: 70, temperature: 25 },
+    { name: 'Device 4', status: 'Warning', signal: 50, temperature: 40, warning: 'Low Battery' },
+  ];
+
+  return (
+    <div className="p-4 space-y-4">
+      <div>
+        <h3 className="font-bold text-lg text-neutral-800 dark:text-neutral-100 mb-2">System Information</h3>
+        <div className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md shadow-sm border border-neutral-200 dark:border-neutral-700">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Server Status: <span className="font-medium text-green-500">Operational</span></p>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Active Devices: <span className="font-medium">125</span></p>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Uptime: <span className="font-medium">24 hours</span></p>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="font-bold text-lg text-neutral-800 dark:text-neutral-100 mb-2">Device Status</h3>
+        <ul className="space-y-2">
+          {deviceStatus.map((device, index) => (
+            <li key={index} className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md shadow-sm border border-neutral-200 dark:border-neutral-700">
+              <div className="flex justify-between items-center">
+                <h4 className="font-medium text-neutral-800 dark:text-neutral-100">{device.name}</h4>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${device.status === 'Online' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' : device.status === 'Offline' ? 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100' : device.status === 'Warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100' : 'bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-100'}`}>
+                  {device.status}
+                </span>
+              </div>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Signal: {device.signal}%</p>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Temperature: {device.temperature}°C</p>
+              {device.alarm && <p className="text-sm text-red-600 dark:text-red-400">Alarm: {device.alarm}</p>}
+              {device.warning && <p className="text-sm text-yellow-600 dark:text-yellow-400">Warning: {device.warning}</p>}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {/* Add more right panel content here */}
+    </div>
+  );
+}
+
+export default RightPanel;
+
+=== components/Sidebar.jsx ===
+import React, { forwardRef } from 'react'; // Import forwardRef
+import PropTypes from 'prop-types';
+import Link from 'next/link';
+
+// Use forwardRef to allow passing ref from parent
+const Sidebar = forwardRef(({ isOpen, onClose, width }, ref) => {
+  const menuItems = [
+    { icon: 'fa-tachometer-alt', label: 'Dashboard', path: '/' },
+    { icon: 'fa-map-marker-alt', label: 'Map View', path: '/map' },
+    { icon: 'fa-list-alt', label: 'Device List', path: '/devices' },
+    { icon: 'fa-chart-bar', label: 'Analytics', path: '/analytics' },
+    { icon: 'fa-cog', label: 'Settings', path: '/settings' },
+  ];
+
+  // Base classes without fixed width
+  const baseClasses = "flex flex-col h-full bg-neutral-50 dark:bg-neutral-900 shadow-lg transition-transform duration-300 ease-in-out flex-shrink-0"; // Added flex-shrink-0
+  // Positioning for mobile/desktop toggle
+  const positioningClasses = "fixed inset-y-0 left-0 z-50 md:static md:shadow-none md:translate-x-0";
+  const visibilityClasses = isOpen ? "translate-x-0" : "-translate-x-full";
+
+  // Dynamic style for width
+  const dynamicWidthStyle = { width: `${width}px` };
+
+  return (
+    // Apply ref and dynamic width style here
+    <div
+      ref={ref}
+      style={dynamicWidthStyle}
+      className={`${baseClasses} ${positioningClasses} ${visibilityClasses}`}
+      aria-hidden={!isOpen && typeof window !== 'undefined' && window.innerWidth < 768} // Hide when closed on mobile
+      aria-modal={isOpen && typeof window !== 'undefined' && window.innerWidth < 768} // Indicate modal behavior on mobile
+      role="navigation" // Add role
+    >
+      {/* Inner container for padding and overflow */}
+      <div className="flex flex-col h-full p-4 space-y-2 overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Menu</h2>
+          {/* Close button only visible on smaller screens where sidebar is overlay */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="md:hidden text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 focus:outline-none"
+            aria-label="Close menu"
+          >
+            <i className="fas fa-times fa-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <ul className="flex-grow space-y-2">
+          {menuItems.map((item) => (
+            <li key={item.label}>
+              <Link
+                href={item.path}
+                className="flex items-center p-2 space-x-3 transition-colors duration-200 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                aria-label={`Navigate to ${item.label}`}
+                // Close sidebar on navigation click, especially useful on mobile
+                onClick={onClose}
+              >
+                <i className={`fas ${item.icon} fa-fw text-neutral-600 dark:text-neutral-400`} aria-hidden="true"></i>
+                <span className="font-medium text-neutral-800 dark:text-neutral-100">{item.label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <div className="pt-4 mt-auto border-t border-neutral-200 dark:border-neutral-700">
+          <p className="text-sm text-center text-neutral-500 dark:text-neutral-400">Version 1.0.0</p>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Add display name for better debugging with forwardRef
+Sidebar.displayName = 'Sidebar';
+
+Sidebar.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  width: PropTypes.number.isRequired, // Add width prop type
+};
+
+export default Sidebar;
+
+
+=== components/ThemeSwitcher.jsx ===
+import React from 'react';
+import PropTypes from 'prop-types'; // Import PropTypes
+
+function ThemeSwitcher({ isDarkMode, onToggleDarkMode }) {
+  return (
+    <button
+      onClick={onToggleDarkMode}
+      className="p-2 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-neutral-900" // Added focus styles
+      aria-label="Toggle Dark Mode"
+    >
+      {isDarkMode ? (
+        <i className="fas fa-sun text-yellow-400 fa-lg" aria-hidden="true"></i> // Added aria-hidden
+      ) : (
+        <i className="fas fa-moon text-neutral-500 fa-lg" aria-hidden="true"></i> // Added aria-hidden
+      )}
+    </button>
+  );
+}
+
+// Add PropTypes
+ThemeSwitcher.propTypes = {
+  isDarkMode: PropTypes.bool.isRequired,
+  onToggleDarkMode: PropTypes.func.isRequired,
+};
+
+export default ThemeSwitcher;
+
