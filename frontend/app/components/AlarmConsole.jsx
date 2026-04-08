@@ -1,11 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { getAllAlerts } from '../lib/api';
+import React, { useState } from 'react';
 
-const getSeverityClass = (value, threshold, acknowledged) => {
-  if (acknowledged) return '';
-
+const getSeverityClass = (value, threshold) => {
   const numericValue = Number(value ?? 0);
   const numericThreshold = Number(threshold ?? 0);
 
@@ -20,50 +17,24 @@ const getSeverityClass = (value, threshold, acknowledged) => {
   return 'bg-yellow-100 text-yellow-600 dark:text-yellow-400';
 };
 
-function AlarmConsole() {
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function AlarmConsole({ alerts, loading, error, onAcknowledge }) {
+  const [successMessage, setSuccessMessage] = useState('');
+  const [acknowledgingId, setAcknowledgingId] = useState(null);
+  const [actionError, setActionError] = useState('');
 
-  useEffect(() => {
-    const fetchAlerts = async () => {
-      try {
-        setLoading(true);
-        setError('');
+  const handleAcknowledge = async (id) => {
+    setAcknowledgingId(id);
+    setSuccessMessage('');
+    setActionError('');
 
-        const data = await getAllAlerts();
-
-        const initializedAlerts = Array.isArray(data)
-          ? data.map((alert, index) => ({
-              id: alert.id ?? index,
-              timestamp: alert.timestamp ?? new Date().toISOString(),
-              device: alert.device ?? 'Unknown Device',
-              type: alert.type ?? 'unknown',
-              value: Number(alert.value ?? 0),
-              threshold: Number(alert.threshold ?? 0),
-              description: alert.description ?? 'No description',
-              acknowledged: false,
-            }))
-          : [];
-
-        setAlerts(initializedAlerts);
-      } catch (err) {
-        console.error('Erreur lors du chargement des alertes :', err);
-        setError('Impossible de charger les alertes');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAlerts();
-  }, []);
-
-  const handleAcknowledge = (id) => {
-    setAlerts((prev) =>
-      prev.map((alert) =>
-        alert.id === id ? { ...alert, acknowledged: true } : alert
-      )
-    );
+    try {
+      await onAcknowledge(id);
+      setSuccessMessage('Alert acknowledged.');
+    } catch (err) {
+      setActionError('Impossible d\'acknowledge l\'alerte');
+    } finally {
+      setAcknowledgingId(null);
+    }
   };
 
   return (
@@ -73,9 +44,15 @@ function AlarmConsole() {
           Alarm Console
         </h3>
 
-        {error && (
+        {successMessage && (
+          <div className="mx-2 mb-3 rounded-md bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-3 py-2 text-sm">
+            {successMessage}
+          </div>
+        )}
+
+        {(actionError || error) && (
           <div className="mx-2 mb-3 rounded-md bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-3 py-2 text-sm">
-            {error}
+            {actionError || error}
           </div>
         )}
 
@@ -100,7 +77,7 @@ function AlarmConsole() {
                     Chargement...
                   </td>
                 </tr>
-              ) : alerts.length === 0 ? (
+              ) : !alerts?.length ? (
                 <tr>
                   <td colSpan="7" className="text-center py-4 text-neutral-500">
                     Aucune alerte.
@@ -110,11 +87,7 @@ function AlarmConsole() {
                 alerts.map((alert) => (
                   <tr
                     key={alert.id}
-                    className={getSeverityClass(
-                      alert.value,
-                      alert.threshold,
-                      alert.acknowledged
-                    )}
+                    className={getSeverityClass(alert.value, alert.threshold)}
                   >
                     <td className="px-2 py-2">
                       {new Date(alert.timestamp).toLocaleString()}
@@ -125,16 +98,13 @@ function AlarmConsole() {
                     <td className="px-2 py-2">{alert.threshold}</td>
                     <td className="px-2 py-2">{alert.description}</td>
                     <td className="px-2 py-2">
-                      {!alert.acknowledged ? (
-                        <button
-                          onClick={() => handleAcknowledge(alert.id)}
-                          className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded"
-                        >
-                          Ack
-                        </button>
-                      ) : (
-                        <span className="text-green-600 font-medium">Acked</span>
-                      )}
+                      <button
+                        onClick={() => handleAcknowledge(alert.id)}
+                        disabled={acknowledgingId === alert.id}
+                        className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded"
+                      >
+                        {acknowledgingId === alert.id ? 'Acking...' : 'Ack'}
+                      </button>
                     </td>
                   </tr>
                 ))

@@ -4,16 +4,14 @@ import Link from 'next/link';
 
 const Sidebar = forwardRef(({ isOpen, onClose, width, onLogout }, ref) => {
   const menuItems = [
-    { icon: 'fa-tachometer-alt', label: 'Dashboard', path: '/' },
-    { icon: 'fa-map-marker-alt', label: 'Map View', path: '/map' }, // Corrigé: changé '/' en '/map' pour un exemple valide
+    { icon: 'fa-tachometer-alt', label: 'Dashboard', path: '/dashboard' },
     { icon: 'fa-sitemap', label: 'Device Mgmt', path: '/devices' },
     { icon: 'fa-chart-bar', label: 'Analytics', path: '/analytics' },
-    { icon: 'fa-cog', label: 'Settings', path: '/settings' },
   ];
 
-  const baseClasses = "flex flex-col h-full bg-neutral-50 dark:bg-neutral-900 shadow-lg transition-transform duration-300 ease-in-out flex-shrink-0 overflow-hidden";
-  const positioningClasses = "fixed inset-y-0 left-0 z-50 md:static md:shadow-none md:translate-x-0";
-  const visibilityClasses = isOpen ? "translate-x-0" : "-translate-x-full";
+  const baseClasses = 'flex flex-col h-full bg-neutral-50 dark:bg-neutral-900 shadow-lg transition-transform duration-300 ease-in-out flex-shrink-0 overflow-hidden';
+  const positioningClasses = 'fixed inset-y-0 left-0 z-50 md:static md:shadow-none md:translate-x-0';
+  const visibilityClasses = isOpen ? 'translate-x-0' : '-translate-x-full';
   const dynamicWidthStyle = { width: `${width}px` };
 
   return (
@@ -26,7 +24,6 @@ const Sidebar = forwardRef(({ isOpen, onClose, width, onLogout }, ref) => {
       role="navigation"
     >
       <div className="flex flex-col h-full p-4 overflow-y-auto">
-        {/* LOGO EN HAUT */}
         <div className="flex flex-col items-center mb-6 mt-2">
           <img
             src="/images/logo1.png"
@@ -36,7 +33,6 @@ const Sidebar = forwardRef(({ isOpen, onClose, width, onLogout }, ref) => {
           />
         </div>
 
-        {/* MENU */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Menu</h2>
           <button
@@ -69,13 +65,12 @@ const Sidebar = forwardRef(({ isOpen, onClose, width, onLogout }, ref) => {
           ))}
         </ul>
 
-        {/* Bas du sidebar : bouton Déconnexion */}
         <div className="pt-4 mt-8 border-t border-neutral-200 dark:border-neutral-700 flex flex-col items-center">
           <button
             onClick={onLogout}
             className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-xl shadow transition-colors duration-200 mb-3"
           >
-            Déconnexion
+            Deconnexion
           </button>
           <p className="text-xs text-center text-neutral-500 dark:text-neutral-400">Version 1.0.0</p>
         </div>

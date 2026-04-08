@@ -16,6 +16,10 @@ public class AlertData {
     private Instant timestamp;
     private String description;
     private float threshold;
+    @Column(name = "sensor_id")
+    private Long sensorId;
+    private boolean acknowledged;
+    private boolean active;
     private String device; // ✅ Nouveau champ pour le nom du capteur
 
     public AlertData() {}
@@ -59,6 +63,18 @@ public class AlertData {
         return device;
     }
 
+    public Long getSensorId() {
+        return sensorId;
+    }
+
+    public boolean isAcknowledged() {
+        return acknowledged;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -85,5 +101,17 @@ public class AlertData {
 
     public void setDevice(String device) {
         this.device = device;
+    }
+
+    public void setSensorId(Long sensorId) {
+        this.sensorId = sensorId;
+    }
+
+    public void setAcknowledged(boolean acknowledged) {
+        this.acknowledged = acknowledged;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }

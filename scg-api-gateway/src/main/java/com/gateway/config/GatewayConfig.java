@@ -4,11 +4,6 @@ import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.reactive.CorsWebFilter;
-import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
-
-import java.util.Arrays;
 
 @Configuration
 public class GatewayConfig {
@@ -26,7 +21,7 @@ public class GatewayConfig {
                         .uri("lb://service-alerte"))
 
                 // Phase 1 MVP: expose inventory reads from the service that already owns the MySQL schema
-                .route("inventory-service", r -> r.path("/api/gateways/**", "/api/nodes/**", "/api/sensors/**")
+                .route("inventory-service", r -> r.path("/api/gateways/**", "/api/nodes/**", "/api/sensors/**", "/api/dashboard/**")
                         .uri("lb://service-alerte"))
 
                 // Weather Service
@@ -50,20 +45,5 @@ public class GatewayConfig {
                         .uri("lb://prediction-service"))
 
                 .build();
-    }
-
-    @Bean
-    public CorsWebFilter corsWebFilter() {
-        CorsConfiguration corsConfig = new CorsConfiguration();
-        corsConfig.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
-        corsConfig.setMaxAge(3600L);
-        corsConfig.addAllowedMethod("*");
-        corsConfig.addAllowedHeader("*");
-        corsConfig.setAllowCredentials(true);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", corsConfig);
-
-        return new CorsWebFilter(source);
     }
 }

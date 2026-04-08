@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "sensors")
@@ -42,8 +43,18 @@ public class SensorDevice {
         return id;
     }
 
+    @Transient
+    public Long getSensorId() {
+        return id;
+    }
+
     public Long getNodeId() {
         return nodeId;
+    }
+
+    @Transient
+    public NodeRef getNode() {
+        return nodeId == null ? null : new NodeRef(nodeId);
     }
 
     public String getName() {
@@ -80,5 +91,78 @@ public class SensorDevice {
 
     public Double getLegacyPrecision() {
         return legacyPrecision;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public void setSensorId(Long sensorId) {
+        this.id = sensorId;
+    }
+
+    public void setNodeId(Long nodeId) {
+        this.nodeId = nodeId;
+    }
+
+    public void setNode(NodeRef node) {
+        if (node != null) {
+            this.nodeId = node.getId();
+        }
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public void setMeasurementType(String measurementType) {
+        this.measurementType = measurementType;
+    }
+
+    public void setMeasurementUnit(String measurementUnit) {
+        this.measurementUnit = measurementUnit;
+    }
+
+    public void setMeasurementValue(Double measurementValue) {
+        this.measurementValue = measurementValue;
+    }
+
+    public void setPrecision(Double precision) {
+        this.precision = precision;
+    }
+
+    public void setThreshold(Double threshold) {
+        this.threshold = threshold;
+    }
+
+    public void setSensorPrecision(Double sensorPrecision) {
+        this.sensorPrecision = sensorPrecision;
+    }
+
+    public void setLegacyPrecision(Double legacyPrecision) {
+        this.legacyPrecision = legacyPrecision;
+    }
+
+    public static class NodeRef {
+        private Long id;
+
+        public NodeRef() {
+        }
+
+        public NodeRef(Long id) {
+            this.id = id;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
     }
 }

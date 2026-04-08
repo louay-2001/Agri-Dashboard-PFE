@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "gateway")
@@ -34,6 +35,11 @@ public class GatewayDevice {
         return id;
     }
 
+    @Transient
+    public Long getGatewayId() {
+        return id;
+    }
+
     public String getAddressOrLocation() {
         return addressOrLocation;
     }
@@ -60,5 +66,41 @@ public class GatewayDevice {
 
     public String getName() {
         return name;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public void setGatewayId(Long gatewayId) {
+        this.id = gatewayId;
+    }
+
+    public void setAddressOrLocation(String addressOrLocation) {
+        this.addressOrLocation = addressOrLocation;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public void setMacAddress(String macAddress) {
+        this.macAddress = macAddress;
+    }
+
+    public void setMarkOrModel(String markOrModel) {
+        this.markOrModel = markOrModel;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 }

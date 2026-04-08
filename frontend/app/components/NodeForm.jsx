@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { getNode, saveNode, deleteNode, getAllNodes } from '../lib/api';
+import {
+  deleteNode,
+  dispatchDashboardDataUpdated,
+  getAllNodes,
+  getApiErrorMessage,
+  getNode,
+  saveNode
+} from '../lib/api';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
@@ -19,20 +26,72 @@ const initialNodeState = {
   gatewayId: ''
 };
 
+const normalizeNode = (data) => ({
+  id: data.id || data.nodeId || '',
+  name: data.name || '',
+  ipAddress: data.ipAddress || '',
+  macAddress: data.macAddress || '',
+  markOrModel: data.markOrModel || '',
+  addressOrLocation: data.addressOrLocation || '',
+  latitude: data.latitude !== undefined && data.latitude !== null ? data.latitude.toString() : '',
+  longitude: data.longitude !== undefined && data.longitude !== null ? data.longitude.toString() : '',
+  gatewayId: data.gatewayId !== undefined && data.gatewayId !== null ? data.gatewayId.toString() : ''
+});
+
+const parseRequiredInteger = (rawValue, requiredMessage, invalidMessage) => {
+  const value = String(rawValue ?? '').trim();
+  if (!value) {
+    return { error: requiredMessage };
+  }
+  if (!/^-?\d+$/.test(value)) {
+    return { error: invalidMessage };
+  }
+  return { value: Number.parseInt(value, 10) };
+};
+
+const parseOptionalNumber = (rawValue, invalidMessage) => {
+  const value = String(rawValue ?? '').trim();
+  if (!value) {
+    return { value: undefined };
+  }
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) {
+    return { error: invalidMessage };
+  }
+  return { value: parsed };
+};
+
+const parseCoordinate = (rawValue, label, min, max) => {
+  const parsed = parseOptionalNumber(rawValue, `${label} must be numeric`);
+  if (parsed.error || parsed.value === undefined) {
+    return parsed;
+  }
+  if (parsed.value < min || parsed.value > max) {
+    return { error: `${label} must be between ${min} and ${max}` };
+  }
+  return parsed;
+};
+
 function NodeForm() {
   const [formData, setFormData] = useState(initialNodeState);
   const [selectedId, setSelectedId] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isExistingNode, setIsExistingNode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [isListModalOpen, setIsListModalOpen] = useState(false);
   const [nodeListData, setNodeListData] = useState([]);
   const [isListLoading, setIsListLoading] = useState(false);
 
+  const isBusy = isLoading || isSubmitting || isListLoading;
+
   const clearForm = () => {
     setFormData(initialNodeState);
     setSelectedId('');
     setIsEditing(false);
+    setIsExistingNode(false);
+    setIsSubmitting(false);
     setMessage({ type: '', text: '' });
   };
 
@@ -43,32 +102,29 @@ function NodeForm() {
   };
 
   const handleGet = async () => {
-    if (!selectedId.trim()) {
-      setMessage({ type: 'error', text: 'Please enter a Node ID to get.' });
+    const nodeId = parseRequiredInteger(
+      selectedId,
+      'Please enter a Node ID to get.',
+      'Node ID must be a valid number'
+    );
+    if (nodeId.error) {
+      setMessage({ type: 'error', text: nodeId.error });
       return;
     }
+
     setIsLoading(true);
     try {
-      const data = await getNode(selectedId.trim());
-      setFormData({
-        id: data.id || data.nodeId || '',
-        name: data.name || '',
-        ipAddress: data.ipAddress || '',
-        macAddress: data.macAddress || '',
-        markOrModel: data.markOrModel || '',
-        addressOrLocation: data.addressOrLocation || '',
-        latitude: data.latitude !== undefined ? data.latitude.toString() : '',
-        longitude: data.longitude !== undefined ? data.longitude.toString() : '',
-        gatewayId: data.gatewayId || ''
-      });
-      setSelectedId(data.id || data.nodeId || '');
+      const data = await getNode(nodeId.value);
+      const normalized = normalizeNode(data);
+      setFormData(normalized);
+      setSelectedId(String(normalized.id));
       setIsEditing(false);
-      setMessage({ type: 'success', text: `Node ${selectedId.trim()} loaded.` });
+      setIsExistingNode(true);
+      setMessage({ type: 'success', text: `Node ${normalized.id} loaded.` });
     } catch (error) {
-      console.error('Get Node Error:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to load node.' });
+      setMessage({ type: 'error', text: getApiErrorMessage(error, 'Failed to load node.') });
       clearForm();
-      setSelectedId(selectedId.trim());
+      setSelectedId(String(nodeId.value));
     } finally {
       setIsLoading(false);
     }
@@ -77,52 +133,100 @@ function NodeForm() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (isEditing) setMessage({ type: '', text: '' });
+    if (isEditing) {
+      setMessage({ type: '', text: '' });
+    }
   };
 
   const handleSave = async (e) => {
-    e.preventDefault(); // ← ESSENTIEL !
-    if (!isEditing) return;
+    e.preventDefault();
+    if (!isEditing || isSubmitting) {
+      return;
+    }
 
-    if (!formData.name.trim() || !formData.gatewayId.trim()) {
-      setMessage({ type: 'error', text: 'Name and Gateway ID are required.' });
+    const nodeId = parseRequiredInteger(
+      selectedId,
+      isExistingNode ? 'Node ID is required' : 'Node ID is required in create mode',
+      'Node ID must be a valid number'
+    );
+    if (nodeId.error) {
+      setMessage({ type: 'error', text: nodeId.error });
+      return;
+    }
+
+    if (!formData.name.trim()) {
+      setMessage({ type: 'error', text: 'Node name is required' });
+      return;
+    }
+
+    const gatewayId = parseRequiredInteger(
+      formData.gatewayId,
+      'Gateway ID is required',
+      'Gateway ID must be a valid number'
+    );
+    if (gatewayId.error) {
+      setMessage({ type: 'error', text: gatewayId.error });
+      return;
+    }
+
+    if (!formData.ipAddress.trim()) {
+      setMessage({ type: 'error', text: 'IP address is required' });
+      return;
+    }
+
+    if (!formData.macAddress.trim()) {
+      setMessage({ type: 'error', text: 'MAC address is required' });
+      return;
+    }
+
+    const latitude = parseCoordinate(formData.latitude, 'Latitude', -90, 90);
+    if (latitude.error) {
+      setMessage({ type: 'error', text: latitude.error });
+      return;
+    }
+
+    const longitude = parseCoordinate(formData.longitude, 'Longitude', -180, 180);
+    if (longitude.error) {
+      setMessage({ type: 'error', text: longitude.error });
       return;
     }
 
     const payload = {
-      ...formData,
-      latitude: formData.latitude !== '' ? parseFloat(formData.latitude) : undefined,
-      longitude: formData.longitude !== '' ? parseFloat(formData.longitude) : undefined,
-      id: formData.id,
+      id: nodeId.value,
+      name: formData.name.trim(),
+      gatewayId: gatewayId.value,
+      ipAddress: formData.ipAddress.trim(),
+      macAddress: formData.macAddress.trim(),
+      markOrModel: formData.markOrModel.trim() || undefined,
+      addressOrLocation: formData.addressOrLocation.trim() || undefined,
+      latitude: latitude.value,
+      longitude: longitude.value,
     };
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
-      const savedData = await saveNode(payload);
-      setFormData({
-        id: savedData.id || savedData.nodeId || '',
-        name: savedData.name || '',
-        ipAddress: savedData.ipAddress || '',
-        macAddress: savedData.macAddress || '',
-        markOrModel: savedData.markOrModel || '',
-        addressOrLocation: savedData.addressOrLocation || '',
-        latitude: savedData.latitude !== undefined ? savedData.latitude.toString() : '',
-        longitude: savedData.longitude !== undefined ? savedData.longitude.toString() : '',
-        gatewayId: savedData.gatewayId || ''
-      });
-      setSelectedId(savedData.id || savedData.nodeId || '');
+      const savedData = await saveNode(payload, { isUpdate: isExistingNode });
+      const normalized = normalizeNode(savedData);
+      setFormData(normalized);
+      setSelectedId(String(normalized.id));
       setIsEditing(false);
-      setMessage({ type: 'success', text: `Node ${savedData.id || savedData.nodeId} saved successfully.` });
+      setIsExistingNode(true);
+      setMessage({
+        type: 'success',
+        text: isExistingNode
+          ? `Node ${normalized.id} updated successfully.`
+          : `Node ${normalized.id} created successfully.`
+      });
+      dispatchDashboardDataUpdated();
     } catch (error) {
-      console.error('Save Node Error:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to save node.' });
+      setMessage({ type: 'error', text: getApiErrorMessage(error, 'Failed to save node.') });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!formData.id && !selectedId) {
+    if (!selectedId || !isExistingNode) {
       setMessage({ type: 'error', text: 'Load the node you want to delete first.' });
       return;
     }
@@ -136,9 +240,9 @@ function NodeForm() {
       await deleteNode(selectedId);
       setMessage({ type: 'success', text: `Node ${selectedId} deleted.` });
       clearForm();
+      dispatchDashboardDataUpdated();
     } catch (error) {
-      console.error('Delete Node Error:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to delete node.' });
+      setMessage({ type: 'error', text: getApiErrorMessage(error, 'Failed to delete node.') });
     } finally {
       setIsLoading(false);
     }
@@ -151,8 +255,7 @@ function NodeForm() {
       const data = await getAllNodes();
       setNodeListData(data);
     } catch (error) {
-      console.error('Get All Nodes Error:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to load node list.' });
+      setMessage({ type: 'error', text: getApiErrorMessage(error, 'Failed to load node list.') });
       setIsListModalOpen(false);
     } finally {
       setIsListLoading(false);
@@ -160,7 +263,7 @@ function NodeForm() {
   };
 
   const handleEdit = () => {
-    if (!selectedId) {
+    if (!selectedId || !isExistingNode) {
       setMessage({ type: 'error', text: 'Load a node first or click Add New.' });
       return;
     }
@@ -198,74 +301,74 @@ function NodeForm() {
         <div className="flex flex-wrap items-end gap-2 pb-4 border-b border-neutral-200 dark:border-neutral-700">
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="getId">Node ID</Label>
-            <Input id="getId" value={selectedId} onChange={(e) => setSelectedId(e.target.value)} placeholder="Enter Node ID" />
+            <Input id="getId" value={selectedId} onChange={(e) => setSelectedId(e.target.value)} placeholder="Enter Node ID" disabled={isBusy} />
           </div>
 
-          <Button type="button" onClick={handleGet} disabled={isLoading}>
+          <Button type="button" onClick={handleGet} disabled={isBusy}>
             {isLoading ? 'Loading...' : 'Get Node'}
           </Button>
 
-          <Button type="button" onClick={handleShowList}>
-            Show List
+          <Button type="button" onClick={handleShowList} disabled={isBusy}>
+            {isListLoading ? 'Loading List...' : 'Show List'}
           </Button>
 
-          <Button type="button" onClick={handleAddNew}>
+          <Button type="button" onClick={handleAddNew} disabled={isBusy}>
             Add New Node
           </Button>
 
-          <Button type="button" onClick={handleEdit} disabled={isEditing}>
+          <Button type="button" onClick={handleEdit} disabled={isBusy || isEditing}>
             Edit
           </Button>
         </div>
 
         <div className="flex flex-wrap gap-4">
           <div className="flex-grow min-w-[150px]">
-            <Label htmlFor="nodeName">Node Name</Label>
-            <Input id="nodeName" name="name" value={formData.name} onChange={handleInputChange} placeholder="Enter node name" required disabled={!isEditing} />
+            <Label htmlFor="nodeNameInput">Node Name</Label>
+            <Input id="nodeNameInput" name="name" value={formData.name} onChange={handleInputChange} placeholder="Enter node name" required disabled={!isEditing || isBusy} />
           </div>
 
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="gatewayId">Gateway ID</Label>
-            <Input id="gatewayId" name="gatewayId" value={formData.gatewayId} onChange={handleInputChange} placeholder="Enter gateway ID" required disabled={!isEditing} />
+            <Input id="gatewayId" name="gatewayId" value={formData.gatewayId} onChange={handleInputChange} placeholder="Enter gateway ID" required disabled={!isEditing || isBusy} />
           </div>
 
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="ipAddress">IP Address</Label>
-            <Input id="ipAddress" name="ipAddress" value={formData.ipAddress} onChange={handleInputChange} placeholder="Enter IP address" disabled={!isEditing} />
+            <Input id="ipAddress" name="ipAddress" value={formData.ipAddress} onChange={handleInputChange} placeholder="Enter IP address" disabled={!isEditing || isBusy} />
           </div>
 
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="macAddress">MAC Address</Label>
-            <Input id="macAddress" name="macAddress" value={formData.macAddress} onChange={handleInputChange} placeholder="Enter MAC address" disabled={!isEditing} />
+            <Input id="macAddress" name="macAddress" value={formData.macAddress} onChange={handleInputChange} placeholder="Enter MAC address" disabled={!isEditing || isBusy} />
           </div>
 
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="markOrModel">Mark / Model</Label>
-            <Input id="markOrModel" name="markOrModel" value={formData.markOrModel} onChange={handleInputChange} placeholder="Enter mark or model" disabled={!isEditing} />
+            <Input id="markOrModel" name="markOrModel" value={formData.markOrModel} onChange={handleInputChange} placeholder="Enter mark or model" disabled={!isEditing || isBusy} />
           </div>
 
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="addressOrLocation">Address / Location</Label>
-            <Input id="addressOrLocation" name="addressOrLocation" value={formData.addressOrLocation} onChange={handleInputChange} placeholder="Enter address or location" disabled={!isEditing} />
+            <Input id="addressOrLocation" name="addressOrLocation" value={formData.addressOrLocation} onChange={handleInputChange} placeholder="Enter address or location" disabled={!isEditing || isBusy} />
           </div>
 
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="latitude">Latitude</Label>
-            <Input id="latitude" name="latitude" value={formData.latitude} onChange={handleInputChange} placeholder="Enter latitude" disabled={!isEditing} />
+            <Input id="latitude" name="latitude" value={formData.latitude} onChange={handleInputChange} placeholder="Enter latitude" disabled={!isEditing || isBusy} />
           </div>
 
           <div className="flex-grow min-w-[150px]">
             <Label htmlFor="longitude">Longitude</Label>
-            <Input id="longitude" name="longitude" value={formData.longitude} onChange={handleInputChange} placeholder="Enter longitude" disabled={!isEditing} />
+            <Input id="longitude" name="longitude" value={formData.longitude} onChange={handleInputChange} placeholder="Enter longitude" disabled={!isEditing || isBusy} />
           </div>
         </div>
 
         <div className="flex gap-2 justify-end pt-4">
-          <Button type="submit" disabled={!isEditing}>
-            Save Node
+          <Button type="submit" disabled={!isEditing || isBusy}>
+            {isSubmitting ? 'Saving...' : 'Save Node'}
           </Button>
-          <Button type="button" onClick={handleDelete} disabled={isLoading}>
-            Delete
+          <Button type="button" onClick={handleDelete} disabled={isBusy}>
+            {isLoading ? 'Deleting...' : 'Delete'}
           </Button>
         </div>
       </form>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { signin } from './lib/api';
 
 export default function LoginPage() {
   const [name, setName] = useState('');
@@ -15,23 +16,21 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8082/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, password }),
-      });
+      const data = await signin({ name, password });
 
-      const data = await response.json();
-
-      if (response.ok && data.token) {
+      if (data.token) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('username', data.username || name);
         router.push('/dashboard');
       } else {
-        setError(data.message || data.error || 'Nom ou mot de passe incorrect');
+        setError(data.message || data.error || 'Token non recu depuis le serveur');
       }
     } catch (err) {
-      setError('Erreur de connexion au serveur');
+      setError(
+        err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          'Erreur de connexion au serveur'
+      );
     }
   };
 

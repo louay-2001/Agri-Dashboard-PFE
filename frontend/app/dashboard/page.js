@@ -7,6 +7,7 @@ import RightPanel from '../components/RightPanel';
 import MapComponent from '../components/MapComponent';
 import AlarmConsole from '../components/AlarmConsole';
 import ThemeSwitcher from '../components/ThemeSwitcher';
+import { acknowledgeAlert, DASHBOARD_DATA_UPDATED_EVENT, dispatchDashboardDataUpdated, getDashboardSummary, signin } from '../lib/api';
 
 const splitterStyles = {
   vertical: "w-2 bg-neutral-300 dark:bg-neutral-700 cursor-col-resize hover:bg-blue-500 flex-shrink-0",
@@ -30,6 +31,9 @@ export default function Home() {
   const [isResizingVertical, setIsResizingVertical] = useState(false);
   const [isResizingHorizontal, setIsResizingHorizontal] = useState(false);
   const [layoutReady, setLayoutReady] = useState(false);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState('');
 
   const sidebarRef = useRef(null);
   const mainContentRef = useRef(null);
@@ -45,6 +49,27 @@ export default function Home() {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
 
+  const refreshDashboard = useCallback(async () => {
+    if (!localStorage.getItem('token')) {
+      return;
+    }
+
+    try {
+      setDashboardLoading(true);
+      setDashboardError('');
+      const summary = await getDashboardSummary();
+      setDashboardSummary(summary);
+    } catch (err) {
+      setDashboardError(
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Impossible de charger les donnees du dashboard'
+      );
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     setLayoutReady(true);
     const checkSize = () => {
@@ -58,6 +83,27 @@ export default function Home() {
     window.addEventListener('resize', checkSize);
     return () => window.removeEventListener('resize', checkSize);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setDashboardSummary(null);
+      setDashboardLoading(false);
+      return;
+    }
+
+    refreshDashboard();
+    const intervalId = window.setInterval(refreshDashboard, 10000);
+    const handleDashboardDataUpdated = () => {
+      refreshDashboard();
+    };
+
+    window.addEventListener(DASHBOARD_DATA_UPDATED_EVENT, handleDashboardDataUpdated);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener(DASHBOARD_DATA_UPDATED_EVENT, handleDashboardDataUpdated);
+    };
+  }, [isAuthenticated, refreshDashboard]);
 
   const handleVerticalResizeStart = useCallback((e) => {
     e.preventDefault();
@@ -135,23 +181,21 @@ export default function Home() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8082/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, password }),
-      });
+      const data = await signin({ name, password });
 
-      const data = await response.json();
-
-      if (response.ok && data.token) {
+      if (data.token) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('username', data.username || name);
         setIsAuthenticated(true);
       } else {
-        setError(data.message || data.error || 'Nom ou mot de passe incorrect');
+        setError(data.message || data.error || 'Token non recu depuis le serveur');
       }
     } catch (err) {
-      setError('Erreur de connexion au serveur');
+      setError(
+        err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          'Erreur de connexion au serveur'
+      );
     }
   };
 
@@ -161,7 +205,13 @@ export default function Home() {
     setIsAuthenticated(false);
     setName('');
     setPassword('');
+    setDashboardSummary(null);
   };
+
+  const handleAcknowledgeAlert = useCallback(async (alertId) => {
+    await acknowledgeAlert(alertId);
+    dispatchDashboardDataUpdated();
+  }, []);
 
   if (!checkedAuth) {
     return (
@@ -243,7 +293,10 @@ export default function Home() {
 
       <div ref={mainContentRef} className="flex flex-col flex-grow min-h-0 overflow-hidden">
         <div ref={mapContainerWrapperRef} className="relative flex-grow min-h-0 overflow-hidden">
-          <MapComponent layoutReady={layoutReady} />
+          <MapComponent
+            layoutReady={layoutReady}
+            markers={dashboardSummary?.markers || []}
+          />
         </div>
 
         <div
@@ -256,12 +309,21 @@ export default function Home() {
           style={{ height: `${alarmConsoleHeight}px` }}
           className="overflow-y-auto flex-shrink-0 border-t border-neutral-200 dark:border-neutral-700"
         >
-          <AlarmConsole />
+          <AlarmConsole
+            alerts={dashboardSummary?.alerts || []}
+            loading={dashboardLoading}
+            error={dashboardError}
+            onAcknowledge={handleAcknowledgeAlert}
+          />
         </div>
       </div>
 
       <div className="w-72 flex-shrink-0 overflow-y-auto border-l border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
-        <RightPanel />
+        <RightPanel
+          summary={dashboardSummary}
+          loading={dashboardLoading}
+          error={dashboardError}
+        />
       </div>
 
       <div className="fixed top-4 left-4 z-50 flex justify-center items-center">

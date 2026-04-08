@@ -24,7 +24,20 @@ public class AuthServiceImpl implements AuthService {
             return false;
         }
 
-        return passwordEncoder.matches(password, user.getPassword());
+        String storedPassword = user.getPassword();
+
+        if (passwordEncoder.matches(password, storedPassword)) {
+            return true;
+        }
+
+        // Backward compatibility for legacy rows that were stored as plain text.
+        if (storedPassword != null && storedPassword.equals(password)) {
+            user.setPassword(passwordEncoder.encode(password));
+            userRepository.save(user);
+            return true;
+        }
+
+        return false;
     }
 
     @Override
