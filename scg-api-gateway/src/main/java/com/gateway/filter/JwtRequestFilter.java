@@ -3,6 +3,8 @@ package com.gateway.filter;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -19,9 +21,28 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Locale;
 
 @Component
 public class JwtRequestFilter implements GlobalFilter, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtRequestFilter.class);
+
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/auth",
+            "/actuator"
+    );
+
+    private static final List<String> FORWARDED_IDENTITY_HEADERS = List.of(
+            "X-Auth-Validated",
+            "X-User-Id",
+            "X-User-Email",
+            "X-User-Name",
+            "X-User-Organization-Id",
+            "X-User-Role",
+            "X-User-Roles"
+    );
 
     @Value("${pfe.app.jwtSecret}")
     private String jwtSecret;
@@ -29,15 +50,13 @@ public class JwtRequestFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
-        String path = request.getURI().getPath();
-
-        System.out.println("Gateway request path: " + path);
+        String path = request.getPath().value();
 
         if (request.getMethod() == HttpMethod.OPTIONS) {
             return chain.filter(exchange);
         }
 
-        if (path.startsWith("/auth")) {
+        if (isPublicPath(path)) {
             return chain.filter(exchange);
         }
 
@@ -57,18 +76,37 @@ public class JwtRequestFilter implements GlobalFilter, Ordered {
                     .parseClaimsJws(token)
                     .getBody();
 
-            String username = claims.getSubject();
-            Object roles = claims.get("roles");
+            String email = normalizeClaim(claims.getSubject());
+            String userId = normalizeClaim(claims.get("userId"));
+            String organizationId = normalizeClaim(claims.get("organizationId"));
+            String role = normalizeClaim(claims.get("role"));
+            String roles = normalizeClaim(claims.get("roles"));
+
+            if (email.isBlank() || userId.isBlank() || organizationId.isBlank() || role.isBlank()) {
+                return onError(exchange, "Token is missing required claims", HttpStatus.UNAUTHORIZED);
+            }
+
+            String normalizedRoles = roles.isBlank()
+                    ? "ROLE_" + role.toUpperCase(Locale.ROOT)
+                    : roles;
 
             ServerHttpRequest modifiedRequest = request.mutate()
-                    .header("X-User-Name", username != null ? username : "")
-                    .header("X-User-Roles", roles != null ? roles.toString() : "")
+                    .headers(headers -> {
+                        FORWARDED_IDENTITY_HEADERS.forEach(headers::remove);
+                        headers.add("X-Auth-Validated", "true");
+                        headers.add("X-User-Id", userId);
+                        headers.add("X-User-Email", email);
+                        headers.add("X-User-Name", email);
+                        headers.add("X-User-Organization-Id", organizationId);
+                        headers.add("X-User-Role", role);
+                        headers.add("X-User-Roles", normalizedRoles);
+                    })
                     .build();
 
             return chain.filter(exchange.mutate().request(modifiedRequest).build());
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.debug("JWT validation failed for path {}", path, e);
             return onError(exchange, "Invalid or expired token", HttpStatus.UNAUTHORIZED);
         }
     }
@@ -87,5 +125,17 @@ public class JwtRequestFilter implements GlobalFilter, Ordered {
     @Override
     public int getOrder() {
         return -1;
+    }
+
+    private boolean isPublicPath(String path) {
+        return PUBLIC_PATHS.stream().anyMatch(publicPath -> matchesPath(path, publicPath));
+    }
+
+    private boolean matchesPath(String path, String publicPath) {
+        return path.equals(publicPath) || path.startsWith(publicPath + "/");
+    }
+
+    private String normalizeClaim(Object claim) {
+        return claim == null ? "" : claim.toString().trim();
     }
 }

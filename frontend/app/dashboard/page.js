@@ -1,365 +1,428 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
-import Sidebar from '../components/Sidebar';
-import RightPanel from '../components/RightPanel';
-import MapComponent from '../components/MapComponent';
-import AlarmConsole from '../components/AlarmConsole';
-import ThemeSwitcher from '../components/ThemeSwitcher';
-import { acknowledgeAlert, DASHBOARD_DATA_UPDATED_EVENT, dispatchDashboardDataUpdated, getDashboardSummary, signin } from '../lib/api';
+import { startTransition, useEffect, useState } from 'react';
+import WorkspaceShell from '../components/auth/WorkspaceShell';
+import DataTable from '../components/demo/DataTable';
+import MetricCard from '../components/demo/MetricCard';
+import SectionCard from '../components/demo/SectionCard';
+import { Button } from '../components/ui/button';
+import {
+  getApiErrorMessage,
+  getDevicesByOrganization,
+  getFarms,
+  getFields,
+  getLatestReading,
+  getOrganizations,
+  getReadingHistory,
+} from '../lib/api';
 
-const splitterStyles = {
-  vertical: "w-2 bg-neutral-300 dark:bg-neutral-700 cursor-col-resize hover:bg-blue-500 flex-shrink-0",
-  horizontal: "h-2 bg-neutral-300 dark:bg-neutral-700 cursor-row-resize hover:bg-blue-500 flex-shrink-0",
+const formatTimestamp = (value) => {
+  if (!value) {
+    return 'No reading yet';
+  }
+
+  return new Date(value).toLocaleString();
 };
 
-const HORIZONTAL_SPLITTER_HEIGHT = 8;
+const formatMeasurement = (value, suffix = '') => {
+  if (value === null || value === undefined) {
+    return 'N/A';
+  }
 
-export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [checkedAuth, setCheckedAuth] = useState(false);
+  return `${Number(value).toFixed(1)}${suffix}`;
+};
 
-  const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
+const buildReadingSummary = (reading) => {
+  if (!reading) {
+    return 'Waiting for first MQTT publish';
+  }
+
+  return [
+    `Temp ${formatMeasurement(reading.temperature, ' C')}`,
+    `Humidity ${formatMeasurement(reading.humidity, '%')}`,
+    `Soil ${formatMeasurement(reading.soilMoisture, '%')}`,
+  ].join(' | ');
+};
+
+export default function DashboardPage() {
+  const [organizations, setOrganizations] = useState([]);
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState('');
+  const [selectedFarmId, setSelectedFarmId] = useState('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [farms, setFarms] = useState([]);
+  const [fields, setFields] = useState([]);
+  const [devices, setDevices] = useState([]);
+  const [latestReadingsByDevice, setLatestReadingsByDevice] = useState({});
+  const [readingHistory, setReadingHistory] = useState([]);
+  const [readingPage, setReadingPage] = useState({
+    totalElements: 0,
+    totalPages: 0,
+    number: 0,
+  });
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(160);
-  const [alarmConsoleHeight, setAlarmConsoleHeight] = useState(150);
-  const [isResizingVertical, setIsResizingVertical] = useState(false);
-  const [isResizingHorizontal, setIsResizingHorizontal] = useState(false);
-  const [layoutReady, setLayoutReady] = useState(false);
-  const [dashboardSummary, setDashboardSummary] = useState(null);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
-  const [dashboardError, setDashboardError] = useState('');
-
-  const sidebarRef = useRef(null);
-  const mainContentRef = useRef(null);
-  const mapContainerWrapperRef = useRef(null);
+  const organizationName = organizations.find((organization) => organization.id === selectedOrganizationId)?.name || 'No organization selected';
+  const farmNamesById = Object.fromEntries(farms.map((farm) => [farm.id, farm.name]));
+  const fieldNamesById = Object.fromEntries(fields.map((field) => [field.id, field.name]));
+  const latestSelectedDeviceReading = selectedDeviceId ? latestReadingsByDevice[selectedDeviceId] ?? null : null;
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    setIsAuthenticated(!!token);
-    setCheckedAuth(true);
+    let cancelled = false;
+
+    async function loadOrganizations() {
+      setOverviewLoading(true);
+      setError('');
+
+      try {
+        const organizationData = await getOrganizations();
+
+        if (cancelled) {
+          return;
+        }
+
+        setOrganizations(organizationData);
+        setSelectedOrganizationId((currentValue) => {
+          const stillExists = organizationData.some((organization) => organization.id === currentValue);
+          return stillExists ? currentValue : organizationData[0]?.id ?? '';
+        });
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(getApiErrorMessage(loadError, 'Unable to load organizations.'));
+        }
+      } finally {
+        if (!cancelled) {
+          setOverviewLoading(false);
+        }
+      }
+    }
+
+    loadOrganizations();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDarkMode);
-  }, [isDarkMode]);
-
-  const refreshDashboard = useCallback(async () => {
-    if (!localStorage.getItem('token')) {
+    if (!selectedOrganizationId) {
+      setFarms([]);
+      setFields([]);
+      setDevices([]);
+      setLatestReadingsByDevice({});
+      setSelectedFarmId('');
+      setSelectedDeviceId('');
       return;
     }
 
-    try {
-      setDashboardLoading(true);
-      setDashboardError('');
-      const summary = await getDashboardSummary();
-      setDashboardSummary(summary);
-    } catch (err) {
-      setDashboardError(
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        'Impossible de charger les donnees du dashboard'
-      );
-    } finally {
-      setDashboardLoading(false);
-    }
-  }, []);
+    let cancelled = false;
 
-  useEffect(() => {
-    setLayoutReady(true);
-    const checkSize = () => {
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false);
-      } else {
-        setSidebarOpen(true);
+    async function loadOverview() {
+      setRefreshing(true);
+      setError('');
+      setDevices([]);
+      setLatestReadingsByDevice({});
+      setSelectedDeviceId('');
+      setReadingHistory([]);
+      setReadingPage({ totalElements: 0, totalPages: 0, number: 0 });
+
+      try {
+        const [farmData, fieldData, devicePage] = await Promise.all([
+          getFarms(selectedOrganizationId),
+          getFields(selectedOrganizationId),
+          getDevicesByOrganization(selectedOrganizationId),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const deviceItems = devicePage?.content ?? [];
+
+        setFarms(farmData);
+        setFields(fieldData);
+        setDevices(deviceItems);
+        setSelectedFarmId((currentValue) => (
+          currentValue && farmData.some((farm) => farm.id === currentValue) ? currentValue : ''
+        ));
+        setSelectedDeviceId((currentValue) => (
+          deviceItems.some((device) => device.id === currentValue) ? currentValue : deviceItems[0]?.id ?? ''
+        ));
+
+        const latestEntries = await Promise.all(
+          deviceItems.map(async (device) => [device.id, await getLatestReading(selectedOrganizationId, device.id)])
+        );
+
+        if (!cancelled) {
+          setLatestReadingsByDevice(Object.fromEntries(latestEntries));
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(getApiErrorMessage(loadError, 'Unable to load farms, fields, devices, and latest readings.'));
+        }
+      } finally {
+        if (!cancelled) {
+          setRefreshing(false);
+          setOverviewLoading(false);
+        }
       }
+    }
+
+    loadOverview();
+
+    return () => {
+      cancelled = true;
     };
-    checkSize();
-    window.addEventListener('resize', checkSize);
-    return () => window.removeEventListener('resize', checkSize);
-  }, []);
+  }, [refreshToken, selectedOrganizationId]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setDashboardSummary(null);
-      setDashboardLoading(false);
+    if (!selectedOrganizationId || !selectedDeviceId) {
+      setReadingHistory([]);
+      setReadingPage({ totalElements: 0, totalPages: 0, number: 0 });
       return;
     }
 
-    refreshDashboard();
-    const intervalId = window.setInterval(refreshDashboard, 10000);
-    const handleDashboardDataUpdated = () => {
-      refreshDashboard();
-    };
+    let cancelled = false;
 
-    window.addEventListener(DASHBOARD_DATA_UPDATED_EVENT, handleDashboardDataUpdated);
+    async function loadHistory() {
+      setHistoryLoading(true);
 
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener(DASHBOARD_DATA_UPDATED_EVENT, handleDashboardDataUpdated);
-    };
-  }, [isAuthenticated, refreshDashboard]);
+      try {
+        const page = await getReadingHistory(selectedOrganizationId, selectedDeviceId);
 
-  const handleVerticalResizeStart = useCallback((e) => {
-    e.preventDefault();
-    setIsResizingVertical(true);
-  }, []);
+        if (cancelled) {
+          return;
+        }
 
-  const handleVerticalResizeMove = useCallback((e) => {
-    if (!isResizingVertical) return;
-    const minWidth = 120;
-    const newWidth = Math.max(minWidth, Math.min(e.clientX, window.innerWidth * 0.5));
-    setSidebarWidth(newWidth);
-  }, [isResizingVertical]);
-
-  const handleVerticalResizeEnd = useCallback(() => {
-    setIsResizingVertical(false);
-  }, []);
-
-  const handleHorizontalResizeStart = useCallback((e) => {
-    e.preventDefault();
-    setIsResizingHorizontal(true);
-  }, []);
-
-  const handleHorizontalResizeMove = useCallback((e) => {
-    if (!isResizingHorizontal || !mainContentRef.current) return;
-    const mainContentRect = mainContentRef.current.getBoundingClientRect();
-    const minMapHeight = 100;
-    const minConsoleHeight = 80;
-    const potentialNewHeight = mainContentRect.bottom - e.clientY - HORIZONTAL_SPLITTER_HEIGHT / 2;
-    const newHeight = Math.max(
-      minConsoleHeight,
-      Math.min(potentialNewHeight, mainContentRect.height - minMapHeight - HORIZONTAL_SPLITTER_HEIGHT)
-    );
-    setAlarmConsoleHeight(newHeight);
-  }, [isResizingHorizontal]);
-
-  const handleHorizontalResizeEnd = useCallback(() => {
-    setIsResizingHorizontal(false);
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (isResizingVertical) handleVerticalResizeMove(e);
-      if (isResizingHorizontal) handleHorizontalResizeMove(e);
-    };
-
-    const handleMouseUp = () => {
-      if (isResizingVertical) handleVerticalResizeEnd();
-      if (isResizingHorizontal) handleHorizontalResizeEnd();
-    };
-
-    if (isResizingVertical || isResizingHorizontal) {
-      document.body.style.userSelect = 'none';
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp, { once: true });
-    } else {
-      document.body.style.userSelect = '';
-    }
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = '';
-    };
-  }, [
-    isResizingVertical,
-    handleVerticalResizeMove,
-    handleVerticalResizeEnd,
-    isResizingHorizontal,
-    handleHorizontalResizeMove,
-    handleHorizontalResizeEnd
-  ]);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-
-    try {
-      const data = await signin({ name, password });
-
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('username', data.username || name);
-        setIsAuthenticated(true);
-      } else {
-        setError(data.message || data.error || 'Token non recu depuis le serveur');
+        setReadingHistory(page?.content ?? []);
+        setReadingPage({
+          totalElements: page?.totalElements ?? 0,
+          totalPages: page?.totalPages ?? 0,
+          number: page?.number ?? 0,
+        });
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(getApiErrorMessage(loadError, 'Unable to load reading history.'));
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoading(false);
+        }
       }
-    } catch (err) {
-      setError(
-        err?.response?.data?.message ||
-          err?.response?.data?.error ||
-          'Erreur de connexion au serveur'
-      );
     }
-  };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    setIsAuthenticated(false);
-    setName('');
-    setPassword('');
-    setDashboardSummary(null);
-  };
+    loadHistory();
 
-  const handleAcknowledgeAlert = useCallback(async (alertId) => {
-    await acknowledgeAlert(alertId);
-    dispatchDashboardDataUpdated();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDeviceId, selectedOrganizationId]);
 
-  if (!checkedAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-neutral-900">
-        <p className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">Chargement...</p>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-100 to-green-300">
-        <form
-          onSubmit={handleLogin}
-          className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-6"
-        >
-          <div className="flex justify-center">
-            <Image
-              src="/images/logo1.png"
-              alt="Logo Dashboard IoT"
-              width={100}
-              height={100}
-              className="rounded-full"
-            />
-          </div>
-
-          <h2 className="text-2xl font-bold text-center text-neutral-800">
-            Dashboard IoT - Connexion
-          </h2>
-
-          <input
-            type="text"
-            placeholder="Nom d'utilisateur"
-            className="w-full px-4 py-2 border border-neutral-300 text-neutral-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-
-          <input
-            type="password"
-            placeholder="Mot de passe"
-            className="w-full px-4 py-2 border border-neutral-300 text-neutral-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-
-          <button
-            type="submit"
-            className="w-full bg-green-600 text-white py-2 rounded-xl hover:bg-green-700 transition"
-          >
-            Se connecter
-          </button>
-        </form>
-      </div>
-    );
-  }
+  const visibleFields = selectedFarmId
+    ? fields.filter((field) => field.farmId === selectedFarmId)
+    : fields;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-      <Sidebar
-        ref={sidebarRef}
-        width={sidebarWidth}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onLogout={handleLogout}
-      />
-
-      {sidebarOpen && (
-        <div
-          className={splitterStyles.vertical}
-          onMouseDown={handleVerticalResizeStart}
-          aria-hidden="true"
-        />
-      )}
-
-      <div ref={mainContentRef} className="flex flex-col flex-grow min-h-0 overflow-hidden">
-        <div ref={mapContainerWrapperRef} className="relative flex-grow min-h-0 overflow-hidden">
-          <MapComponent
-            layoutReady={layoutReady}
-            markers={dashboardSummary?.markers || []}
-          />
-        </div>
-
-        <div
-          className={`${splitterStyles.horizontal} flex-shrink-0`}
-          onMouseDown={handleHorizontalResizeStart}
-          aria-hidden="true"
-        />
-
-        <div
-          style={{ height: `${alarmConsoleHeight}px` }}
-          className="overflow-y-auto flex-shrink-0 border-t border-neutral-200 dark:border-neutral-700"
+    <WorkspaceShell
+      eyebrow="Agritech IoT Demo"
+      title="Platform Overview"
+      description="Use this dashboard to browse the live demo hierarchy, inspect devices, and verify the most recent MQTT sensor readings flowing into the platform."
+      actions={(
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            startTransition(() => {
+              setRefreshToken((currentValue) => currentValue + 1);
+            });
+          }}
         >
-          <AlarmConsole
-            alerts={dashboardSummary?.alerts || []}
-            loading={dashboardLoading}
-            error={dashboardError}
-            onAcknowledge={handleAcknowledgeAlert}
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
+        </Button>
+      )}
+    >
+      <>
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Organizations" value={organizations.length} accent="bg-green-500" />
+          <MetricCard label="Farms" value={farms.length} accent="bg-emerald-500" />
+          <MetricCard label="Fields" value={fields.length} accent="bg-lime-500" />
+          <MetricCard label="Devices" value={devices.length} accent="bg-teal-500" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-6">
+            <SectionCard
+              title="Organizations"
+              subtitle="Choose an organization to drive the rest of the demo data."
+              action={selectedOrganizationId ? (
+                <button
+                  type="button"
+                  onClick={() => startTransition(() => setRefreshToken((currentValue) => currentValue + 1))}
+                  className="text-sm font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
+                >
+                  {refreshing ? 'Refreshing...' : 'Reload'}
+                </button>
+              ) : null}
+            >
+              <DataTable
+                columns={[
+                  { label: 'Name', key: 'name' },
+                  { label: 'Created', key: (organization) => formatTimestamp(organization.createdAt) },
+                ]}
+                rows={organizations}
+                getRowKey={(organization) => organization.id}
+                selectedRowKey={selectedOrganizationId}
+                onRowClick={(organization) => {
+                  startTransition(() => {
+                    setSelectedOrganizationId(organization.id);
+                    setSelectedFarmId('');
+                    setSelectedDeviceId('');
+                  });
+                }}
+                emptyMessage={overviewLoading ? 'Loading organizations...' : 'No organizations found.'}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Farms"
+              subtitle={selectedOrganizationId ? `Organization: ${organizationName}` : 'Select an organization first.'}
+              action={selectedFarmId ? (
+                <button
+                  type="button"
+                  onClick={() => startTransition(() => setSelectedFarmId(''))}
+                  className="text-sm font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
+                >
+                  Show all fields
+                </button>
+              ) : null}
+            >
+              <DataTable
+                columns={[
+                  { label: 'Name', key: 'name' },
+                  { label: 'Location', key: (farm) => farm.location || 'N/A' },
+                  { label: 'Created', key: (farm) => formatTimestamp(farm.createdAt) },
+                ]}
+                rows={farms}
+                getRowKey={(farm) => farm.id}
+                selectedRowKey={selectedFarmId}
+                onRowClick={(farm) => startTransition(() => setSelectedFarmId(farm.id))}
+                emptyMessage={selectedOrganizationId ? 'No farms found for this organization.' : 'Select an organization to view farms.'}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Fields"
+              subtitle={selectedFarmId
+                ? `Filtered to farm: ${farmNamesById[selectedFarmId] || 'Selected farm'}`
+                : 'Showing all fields for the selected organization.'}
+            >
+              <DataTable
+                columns={[
+                  { label: 'Name', key: 'name' },
+                  { label: 'Farm', key: (field) => farmNamesById[field.farmId] || field.farmId },
+                  { label: 'Crop', key: (field) => field.cropType || 'N/A' },
+                  { label: 'Area (ha)', key: (field) => field.areaHectare ?? 'N/A' },
+                ]}
+                rows={visibleFields}
+                getRowKey={(field) => field.id}
+                emptyMessage={selectedOrganizationId ? 'No fields found for this selection.' : 'Select an organization to view fields.'}
+              />
+            </SectionCard>
+          </div>
+
+          <div className="space-y-6">
+            <SectionCard
+              title="Devices"
+              subtitle="Each device row includes the latest MQTT-backed reading summary."
+            >
+              <DataTable
+                columns={[
+                  { label: 'Identifier', key: 'deviceIdentifier' },
+                  { label: 'Field', key: (device) => fieldNamesById[device.fieldId] || device.fieldId },
+                  { label: 'Status', key: 'status' },
+                  { label: 'Latest Reading', key: (device) => buildReadingSummary(latestReadingsByDevice[device.id]) },
+                ]}
+                rows={devices}
+                getRowKey={(device) => device.id}
+                selectedRowKey={selectedDeviceId}
+                onRowClick={(device) => startTransition(() => setSelectedDeviceId(device.id))}
+                emptyMessage={selectedOrganizationId ? 'No devices found for this organization.' : 'Select an organization to view devices.'}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Selected Device Snapshot"
+              subtitle={selectedDeviceId ? 'Latest available reading for the selected device.' : 'Select a device to inspect its latest reading.'}
+            >
+              {!selectedDeviceId ? (
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                  No device selected yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                    <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Temperature</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestSelectedDeviceReading?.temperature, ' C')}</p>
+                  </div>
+                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                    <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Humidity</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestSelectedDeviceReading?.humidity, '%')}</p>
+                  </div>
+                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                    <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Soil Moisture</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestSelectedDeviceReading?.soilMoisture, '%')}</p>
+                  </div>
+                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                    <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Recorded At</p>
+                    <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                      {formatTimestamp(latestSelectedDeviceReading?.recordedAt)}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+          </div>
+        </div>
+
+        <SectionCard
+          title="Reading History"
+          subtitle={selectedDeviceId
+            ? `Recent persisted readings for device ${devices.find((device) => device.id === selectedDeviceId)?.deviceIdentifier || selectedDeviceId}`
+            : 'Select a device to inspect its history.'}
+        >
+          <DataTable
+            columns={[
+              { label: 'Recorded At', key: (reading) => formatTimestamp(reading.recordedAt) },
+              { label: 'Temperature', key: (reading) => formatMeasurement(reading.temperature, ' C') },
+              { label: 'Humidity', key: (reading) => formatMeasurement(reading.humidity, '%') },
+              { label: 'Soil Moisture', key: (reading) => formatMeasurement(reading.soilMoisture, '%') },
+              { label: 'Topic', key: 'mqttTopic' },
+            ]}
+            rows={readingHistory}
+            getRowKey={(reading) => reading.id}
+            emptyMessage={historyLoading
+              ? 'Loading reading history...'
+              : selectedDeviceId
+                ? 'No readings found yet for this device.'
+                : 'Select a device to view its reading history.'}
           />
-        </div>
-      </div>
 
-      <div className="w-72 flex-shrink-0 overflow-y-auto border-l border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
-        <RightPanel
-          summary={dashboardSummary}
-          loading={dashboardLoading}
-          error={dashboardError}
-        />
-      </div>
-
-      <div className="fixed top-4 left-4 z-50 flex justify-center items-center">
-        <img
-          src="/images/logo1.png"
-          alt="Logo Dashboard IoT"
-          className="w-24 h-24 rounded-full shadow-lg bg-white dark:bg-neutral-800 p-1"
-        />
-      </div>
-
-      <div className="fixed top-4 right-4 z-50 flex items-end">
-        <ThemeSwitcher
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={() => setIsDarkMode(prev => !prev)}
-        />
-      </div>
-
-      {!sidebarOpen && (
-        <div className="fixed top-20 left-4 z-[60] md:hidden">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded bg-neutral-200/80 dark:bg-neutral-800/80 backdrop-blur-sm text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Open Menu"
-          >
-            <i className="fas fa-bars fa-lg" aria-hidden="true"></i>
-          </button>
-        </div>
-      )}
-
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-    </div>
+          {selectedDeviceId && !historyLoading ? (
+            <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">
+              Showing page {readingPage.number + 1} of {Math.max(readingPage.totalPages, 1)} with {readingPage.totalElements} total readings.
+            </p>
+          ) : null}
+        </SectionCard>
+      </>
+    </WorkspaceShell>
   );
 }

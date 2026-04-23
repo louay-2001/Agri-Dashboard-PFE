@@ -19,3 +19,17 @@ eureka:
 pfe:
   app:
     jwtSecret: jwtPFESecretKeyMustBeLongerThan32BytesForSecurityReasons
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator: DEBUG

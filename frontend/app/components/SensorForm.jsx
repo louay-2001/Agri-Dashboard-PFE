@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+// Legacy inventory component retained only for backward compatibility.
+// The active device management flow is organization -> farm -> field -> device.
+
+import { useEffect, useState } from 'react';
 import {
   deleteSensor,
   dispatchDashboardDataUpdated,
@@ -86,6 +89,10 @@ function SensorForm() {
   const [isListLoading, setIsListLoading] = useState(false);
 
   const isBusy = isLoading || isSubmitting || isListLoading;
+
+  useEffect(() => {
+    console.warn('[LEGACY UI] SensorForm is deprecated. Use the agritech device flow in /devices instead.');
+  }, []);
 
   const clearForm = () => {
     setFormData(initialSensorState);
@@ -304,6 +311,9 @@ function SensorForm() {
   return (
     <>
       <form onSubmit={handleSave} className="space-y-4 max-w-3xl p-4 bg-white dark:bg-neutral-800 shadow rounded-lg">
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+          Legacy sensor UI. Sensor readings now belong to devices in the agritech hierarchy and are ingested through MQTT.
+        </div>
         {message.text && (
           <div className={`p-4 text-white ${message.type === 'error' ? 'bg-red-600' : message.type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`}>
             {message.text}

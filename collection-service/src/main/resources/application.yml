@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: service-collecte
+  datasource:
+    url: jdbc:postgresql://localhost:5433/agri_device_db
+    username: postgres
+    password: 123456789
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+  sql:
+    init:
+      mode: always
+
+server:
+  port: 8090
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    hostname: localhost
+    ip-address: 127.0.0.1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+device-service:
+  base-url: http://device-service
+
+mqtt:
+  enabled: true
+  broker-url: tcp://localhost:1883
+  client-id: service-collecte-subscriber
+  username:
+  password:
+  topic-filter: agri/+/+/data
+  qos: 1
+  connection-timeout-seconds: 10
+  keep-alive-interval-seconds: 30
+
+logging:
+  level:
+    root: INFO
+    com.iotplatform.collection_service: DEBUG
+    org.springframework.web: INFO
+    org.springframework.orm.jpa: INFO
+    org.hibernate.SQL: DEBUG

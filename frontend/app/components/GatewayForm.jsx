@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+// Legacy inventory component retained only for backward compatibility.
+// The active device management flow is organization -> farm -> field -> device.
+
+import { useEffect, useState } from 'react';
 import {
   deleteGateway,
   dispatchDashboardDataUpdated,
@@ -83,6 +86,10 @@ function GatewayForm() {
   const [isListLoading, setIsListLoading] = useState(false);
 
   const isBusy = isLoading || isSubmitting || isListLoading;
+
+  useEffect(() => {
+    console.warn('[LEGACY UI] GatewayForm is deprecated. Use the agritech device flow in /devices instead.');
+  }, []);
 
   const clearForm = () => {
     setFormData(initialGatewayState);
@@ -270,6 +277,9 @@ function GatewayForm() {
   return (
     <>
       <form onSubmit={handleSave} className="space-y-4 max-w-3xl p-4 bg-white dark:bg-neutral-800 shadow rounded-lg">
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+          Legacy gateway UI. The active device management flow now uses organization -&gt; farm -&gt; field -&gt; device.
+        </div>
         {message.text && (
           <div
             className={`p-3 rounded-md text-sm ${

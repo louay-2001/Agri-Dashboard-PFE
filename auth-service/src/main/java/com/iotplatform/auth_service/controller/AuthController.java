@@ -1,13 +1,17 @@
 package com.iotplatform.auth_service.controller;
 
+import com.iotplatform.auth_service.model.User;
 import com.iotplatform.auth_service.payload.request.LoginRequest;
 import com.iotplatform.auth_service.payload.request.SignupRequest;
 import com.iotplatform.auth_service.payload.response.JwtResponse;
 import com.iotplatform.auth_service.payload.response.MessageResponse;
 import com.iotplatform.auth_service.security.JwtUtils;
 import com.iotplatform.auth_service.service.AuthService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/auth")
@@ -21,27 +25,41 @@ public class AuthController {
         this.jwtUtils = jwtUtils;
     }
 
-    @PostMapping("/signin")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        boolean authenticated = authService.authenticate(request.getName(), request.getPassword());
+    @PostMapping({"/signin", "/login"})
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        Optional<User> authenticatedUser = authService.authenticate(request.getEmail(), request.getPassword());
 
-        if (!authenticated) {
+        if (authenticatedUser.isEmpty()) {
             return ResponseEntity.status(401).body(new MessageResponse("Authentication failed"));
         }
 
-        String token = jwtUtils.generateToken(request.getName());
+        User user = authenticatedUser.get();
+        String token = jwtUtils.generateToken(user);
 
-        return ResponseEntity.ok(new JwtResponse(token, "Bearer", request.getName()));
+        return ResponseEntity.ok(new JwtResponse(
+                token,
+                "Bearer",
+                user.getId(),
+                user.getEmail(),
+                user.getEmail(),
+                user.getOrganizationId(),
+                user.getRole().getValue()
+        ));
     }
 
-    @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody SignupRequest request) {
+    @PostMapping({"/signup", "/register"})
+    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest request) {
         try {
-            if (authService.userExists(request.getName())) {
-                return ResponseEntity.badRequest().body(new MessageResponse("User already exists"));
+            if (authService.userExists(request.getEmail())) {
+                return ResponseEntity.badRequest().body(new MessageResponse("User already exists for this email"));
             }
 
-            authService.registerUser(request.getName(), request.getPassword());
+            authService.registerUser(
+                    request.getEmail(),
+                    request.getPassword(),
+                    request.getOrganizationId(),
+                    request.getRole()
+            );
 
             return ResponseEntity.ok(new MessageResponse("User registered successfully"));
         } catch (Exception e) {

@@ -1,0 +1,68 @@
+# Local testing requests for agro-service
+# 1. Run the organization POST request first.
+# 2. Copy the returned id values into the variables below for farm and field requests.
+
+@directBase = http://localhost:8083/api/agro
+@gatewayBase = http://localhost:8080/api/agro
+@organizationId = REPLACE_WITH_ORGANIZATION_ID
+@farmId = REPLACE_WITH_FARM_ID
+@fieldId = REPLACE_WITH_FIELD_ID
+
+### Create organization directly
+POST {{directBase}}/organizations
+Content-Type: application/json
+
+{
+  "name": "Green Valley Cooperative"
+}
+
+### List organizations directly
+GET {{directBase}}/organizations
+
+### Create farm directly
+POST {{directBase}}/farms
+Content-Type: application/json
+
+{
+  "organizationId": "{{organizationId}}",
+  "name": "North Farm",
+  "location": "Nabeul"
+}
+
+### List farms directly
+GET {{directBase}}/farms?organizationId={{organizationId}}
+
+### Create field directly
+POST {{directBase}}/fields
+Content-Type: application/json
+
+{
+  "organizationId": "{{organizationId}}",
+  "farmId": "{{farmId}}",
+  "name": "Field Alpha",
+  "cropType": "Tomato",
+  "areaHectare": 4.50
+}
+
+### List fields directly
+GET {{directBase}}/fields?organizationId={{organizationId}}
+
+### Get field directly
+GET {{directBase}}/fields/{{fieldId}}?organizationId={{organizationId}}
+
+### Create organization through gateway
+POST {{gatewayBase}}/organizations
+Content-Type: application/json
+
+{
+  "name": "Gateway Test Organization"
+}
+
+### List organizations through gateway
+GET {{gatewayBase}}/organizations
+
+### List farms through gateway
+GET {{gatewayBase}}/farms?organizationId={{organizationId}}
+
+### List fields through gateway
+GET {{gatewayBase}}/fields?organizationId={{organizationId}}

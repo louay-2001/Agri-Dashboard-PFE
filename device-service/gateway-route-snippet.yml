@@ -1,0 +1,11 @@
+# YAML route snippet if your gateway routes live in application.yml.
+# Existing project Java RouteLocator equivalent:
+# .route("device-service", r -> r.path("/devices/**").uri("lb://device-service"))
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: device-service
+          uri: lb://device-service
+          predicates:
+            - Path=/devices/**

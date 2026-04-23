@@ -1,23 +1,32 @@
 package com.iotplatform.auth_service.payload.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
 public class LoginRequest {
-    private String name;
+    @JsonAlias("name")
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email must be valid")
+    private String email;
+
+    @NotBlank(message = "Password is required")
     private String password;
 
     public LoginRequest() {
     }
 
-    public LoginRequest(String name, String password) {
-        this.name = name;
+    public LoginRequest(String email, String password) {
+        this.email = email;
         this.password = password;
     }
 
-    public String getName() {
-        return name;
+    public String getEmail() {
+        return email;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getPassword() {

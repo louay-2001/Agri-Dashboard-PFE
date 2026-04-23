@@ -16,6 +16,10 @@ public class GatewayConfig {
                 .route("auth-service", r -> r.path("/auth/**")
                         .uri("lb://auth-service"))
 
+                // Device Service
+                .route("device-service", r -> r.path("/devices", "/devices/**")
+                        .uri("lb://device-service"))
+
                 // Alert Service
                 .route("alert-service", r -> r.path("/api/alerts/**")
                         .uri("lb://service-alerte"))

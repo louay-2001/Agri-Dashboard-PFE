@@ -1,0 +1,58 @@
+@gateway = http://localhost:8080
+@organizationId = REPLACE_WITH_ORGANIZATION_ID
+@farmId = REPLACE_WITH_FARM_ID
+@fieldId = REPLACE_WITH_FIELD_ID
+@deviceId = REPLACE_WITH_DEVICE_ID
+
+### 1. Create organization
+POST {{gateway}}/api/agro/organizations
+Content-Type: application/json
+
+{
+  "name": "Green Valley Cooperative"
+}
+
+### 2. List organizations
+GET {{gateway}}/api/agro/organizations
+
+### 3. Create farm
+POST {{gateway}}/api/agro/farms
+Content-Type: application/json
+
+{
+  "organizationId": "{{organizationId}}",
+  "name": "North Farm",
+  "location": "Nabeul"
+}
+
+### 4. Create field
+POST {{gateway}}/api/agro/fields
+Content-Type: application/json
+
+{
+  "organizationId": "{{organizationId}}",
+  "farmId": "{{farmId}}",
+  "name": "Field Alpha",
+  "cropType": "Tomato",
+  "areaHectare": 4.5
+}
+
+### 5. Create device
+POST {{gateway}}/devices
+Content-Type: application/json
+
+{
+  "fieldId": "{{fieldId}}",
+  "organizationId": "{{organizationId}}",
+  "firmwareVersion": "1.0.0"
+}
+
+### 6. List devices for organization
+GET {{gateway}}/devices?organizationId={{organizationId}}
+
+### 7. Verify latest reading after MQTT publish
+GET {{gateway}}/api/collection/readings/latest?organizationId={{organizationId}}&deviceId={{deviceId}}
+
+### MQTT publish step
+# Replace the placeholders above, then publish with:
+# mosquitto_pub -h localhost -p 1883 -t "agri/<ORG_ID>/<DEVICE_ID>/data" -m "{\"temperature\":25.5,\"humidity\":60,\"soil_moisture\":30}"
