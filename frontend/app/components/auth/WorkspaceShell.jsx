@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/agro', label: 'Hierarchy' },
   { href: '/devices', label: 'Devices' },
   { href: '/readings', label: 'Readings' },
+  { href: '/monitoring', label: 'Monitoring' },
 ];
 
 const isActivePath = (pathname, href) => pathname === href || pathname.startsWith(`${href}/`);

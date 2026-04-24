@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 
 const getSeverityClass = (value, threshold) => {
   const numericValue = Number(value ?? 0);
@@ -17,7 +18,7 @@ const getSeverityClass = (value, threshold) => {
   return 'bg-yellow-100 text-yellow-600 dark:text-yellow-400';
 };
 
-function AlarmConsole({ alerts, loading, error, onAcknowledge }) {
+function AlarmConsole({ alerts, loading, error, onAcknowledge, readOnly }) {
   const [successMessage, setSuccessMessage] = useState('');
   const [acknowledgingId, setAcknowledgingId] = useState(null);
   const [actionError, setActionError] = useState('');
@@ -65,21 +66,23 @@ function AlarmConsole({ alerts, loading, error, onAcknowledge }) {
                 <th className="px-2 py-2 font-semibold w-[12%]">Type</th>
                 <th className="px-2 py-2 font-semibold w-[12%]">Value</th>
                 <th className="px-2 py-2 font-semibold w-[12%]">Threshold</th>
-                <th className="px-2 py-2 font-semibold w-[30%]">Description</th>
-                <th className="px-2 py-2 font-semibold w-[10%]">Action</th>
+                <th className={`px-2 py-2 font-semibold ${readOnly ? 'w-[40%]' : 'w-[30%]'}`}>Description</th>
+                {!readOnly ? (
+                  <th className="px-2 py-2 font-semibold w-[10%]">Action</th>
+                ) : null}
               </tr>
             </thead>
 
             <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-4">
+                  <td colSpan={readOnly ? 6 : 7} className="text-center py-4">
                     Chargement...
                   </td>
                 </tr>
               ) : !alerts?.length ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-4 text-neutral-500">
+                  <td colSpan={readOnly ? 6 : 7} className="text-center py-4 text-neutral-500">
                     Aucune alerte.
                   </td>
                 </tr>
@@ -97,15 +100,17 @@ function AlarmConsole({ alerts, loading, error, onAcknowledge }) {
                     <td className="px-2 py-2">{Number(alert.value).toFixed(2)}</td>
                     <td className="px-2 py-2">{alert.threshold}</td>
                     <td className="px-2 py-2">{alert.description}</td>
-                    <td className="px-2 py-2">
-                      <button
-                        onClick={() => handleAcknowledge(alert.id)}
-                        disabled={acknowledgingId === alert.id}
-                        className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded"
-                      >
-                        {acknowledgingId === alert.id ? 'Acking...' : 'Ack'}
-                      </button>
-                    </td>
+                    {!readOnly ? (
+                      <td className="px-2 py-2">
+                        <button
+                          onClick={() => handleAcknowledge(alert.id)}
+                          disabled={acknowledgingId === alert.id}
+                          className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded"
+                        >
+                          {acknowledgingId === alert.id ? 'Acking...' : 'Ack'}
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))
               )}
@@ -116,5 +121,29 @@ function AlarmConsole({ alerts, loading, error, onAcknowledge }) {
     </div>
   );
 }
+
+AlarmConsole.propTypes = {
+  alerts: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    timestamp: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    device: PropTypes.string,
+    type: PropTypes.string,
+    value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    threshold: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    description: PropTypes.string,
+  })),
+  loading: PropTypes.bool,
+  error: PropTypes.string,
+  onAcknowledge: PropTypes.func,
+  readOnly: PropTypes.bool,
+};
+
+AlarmConsole.defaultProps = {
+  alerts: [],
+  loading: false,
+  error: '',
+  onAcknowledge: async () => {},
+  readOnly: false,
+};
 
 export default AlarmConsole;
