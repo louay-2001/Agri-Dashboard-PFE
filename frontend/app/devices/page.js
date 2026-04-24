@@ -531,9 +531,11 @@ export default function DevicesPage() {
           <Button type="button" variant="outline" onClick={handleRefresh} disabled={!selectedOrganizationId || pageLoading}>
             {pageLoading ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button type="button" variant="secondary" onClick={handleNewDevice} disabled={!deviceWriteAllowed || !selectedOrganizationId}>
-            New Device
-          </Button>
+          {deviceWriteAllowed ? (
+            <Button type="button" variant="secondary" onClick={handleNewDevice} disabled={!selectedOrganizationId}>
+              New Device
+            </Button>
+          ) : null}
           <Link href="/dashboard">
             <Button type="button" variant="outline">
               Overview

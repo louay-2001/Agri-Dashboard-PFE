@@ -14,16 +14,20 @@ import {
   createFarm,
   createField,
   createOrganization,
+  createSubscriptionPlan,
   deleteFarm,
   deleteField,
   deleteOrganization,
+  deleteSubscriptionPlan,
   getApiErrorMessage,
   getFarms,
   getFields,
   getOrganizations,
+  getSubscriptionPlans,
   updateFarm,
   updateField,
   updateOrganization,
+  updateSubscriptionPlan,
 } from '../lib/api';
 import {
   canManageAgroResources,
@@ -35,8 +39,17 @@ import {
 
 const EMPTY_ORG = { name: '' };
 const EMPTY_FARM = { name: '', location: '' };
+const EMPTY_PLAN = {
+  code: '',
+  name: '',
+  description: '',
+  deviceLimit: '',
+  fieldLimit: '',
+  priceMonthly: '',
+  active: 'true',
+};
 const emptyField = (farmId = '') => ({ farmId, name: '', cropType: '', areaHectare: '' });
-const orgForm = (item) => ({ name: item?.name || '' });
+const orgForm = (item) => ({ name: item?.name || '', subscriptionPlanId: item?.subscriptionPlanId || '' });
 const farmForm = (item) => ({ name: item?.name || '', location: item?.location || '' });
 const fieldForm = (item) => ({
   farmId: item?.farmId || '',
@@ -44,15 +57,43 @@ const fieldForm = (item) => ({
   cropType: item?.cropType || '',
   areaHectare: item?.areaHectare === null || item?.areaHectare === undefined ? '' : String(item.areaHectare),
 });
+const planForm = (item) => ({
+  code: item?.code || '',
+  name: item?.name || '',
+  description: item?.description || '',
+  deviceLimit: item?.deviceLimit === null || item?.deviceLimit === undefined ? '' : String(item.deviceLimit),
+  fieldLimit: item?.fieldLimit === null || item?.fieldLimit === undefined ? '' : String(item.fieldLimit),
+  priceMonthly: item?.priceMonthly === null || item?.priceMonthly === undefined ? '' : String(item.priceMonthly),
+  active: item ? String(Boolean(item.active)) : 'true',
+});
 const clean = (value) => {
   const trimmed = String(value ?? '').trim();
   return trimmed ? trimmed : undefined;
 };
 const formatTimestamp = (value) => (value ? new Date(value).toLocaleString() : 'N/A');
 const inputErrorClass = (message) => (message ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : '');
+const toPositiveInteger = (value) => {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : Number.NaN;
+};
+const toNonNegativeDecimal = (value) => {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN;
+};
 
 export default function AgroPage() {
   const [organizations, setOrganizations] = useState([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [farms, setFarms] = useState([]);
   const [fields, setFields] = useState([]);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState('');
@@ -60,27 +101,33 @@ export default function AgroPage() {
   const [selectedFarmId, setSelectedFarmId] = useState('');
   const [editingFarmId, setEditingFarmId] = useState('');
   const [editingFieldId, setEditingFieldId] = useState('');
+  const [editingPlanId, setEditingPlanId] = useState('');
   const [organization, setOrganization] = useState(EMPTY_ORG);
   const [farm, setFarm] = useState(EMPTY_FARM);
   const [field, setField] = useState(emptyField(''));
+  const [plan, setPlan] = useState(EMPTY_PLAN);
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [savingOrg, setSavingOrg] = useState(false);
   const [savingFarm, setSavingFarm] = useState(false);
   const [savingField, setSavingField] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
   const [deletingOrg, setDeletingOrg] = useState(false);
   const [deletingFarm, setDeletingFarm] = useState(false);
   const [deletingField, setDeletingField] = useState(false);
+  const [deletingPlan, setDeletingPlan] = useState(false);
   const [contextRefreshToken, setContextRefreshToken] = useState(0);
   const [feedback, setFeedback] = useState({ type: '', text: '' });
   const [organizationErrors, setOrganizationErrors] = useState({});
   const [farmErrors, setFarmErrors] = useState({});
   const [fieldErrors, setFieldErrors] = useState({});
+  const [planErrors, setPlanErrors] = useState({});
 
   const currentOrganization = organizations.find((item) => item.id === selectedOrganizationId) || null;
   const currentFarm = farms.find((item) => item.id === selectedFarmId) || null;
   const farmsById = Object.fromEntries(farms.map((item) => [item.id, item]));
+  const plansById = Object.fromEntries(subscriptionPlans.map((item) => [item.id, item]));
   const currentRole = getCurrentUserRole();
   const organizationWriteAllowed = canManageOrganizations();
   const agroWriteAllowed = canManageAgroResources();
@@ -110,8 +157,14 @@ export default function AgroPage() {
     return nextSelectedId;
   };
 
+  const applySubscriptionPlans = (items, preferredEditingId = editingPlanId) => {
+    setSubscriptionPlans(items);
+    const nextEditingId = items.some((item) => item.id === preferredEditingId) ? preferredEditingId : '';
+    setEditingPlanId(nextEditingId);
+    setPlan(nextEditingId ? planForm(items.find((item) => item.id === nextEditingId)) : EMPTY_PLAN);
+  };
+
   const refreshOrganizations = async (preferredSelectedId = selectedOrganizationId, preferredEditingId = editingOrganizationId) => {
-    setLoading(true);
     try {
       const items = await getOrganizations();
       return applyOrganizations(items, preferredSelectedId, preferredEditingId);
@@ -123,8 +176,20 @@ export default function AgroPage() {
       setEditingOrganizationId('');
       setOrganization(EMPTY_ORG);
       return '';
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const refreshSubscriptionPlans = async (preferredEditingId = editingPlanId) => {
+    try {
+      const items = await getSubscriptionPlans();
+      applySubscriptionPlans(items, preferredEditingId);
+      return items;
+    } catch (error) {
+      setFeedback({ type: 'error', text: getApiErrorMessage(error, 'Unable to load subscription plans.') });
+      setSubscriptionPlans([]);
+      setEditingPlanId('');
+      setPlan(EMPTY_PLAN);
+      return [];
     }
   };
 
@@ -133,14 +198,19 @@ export default function AgroPage() {
     async function loadData() {
       setLoading(true);
       try {
-        const items = await getOrganizations();
+        const [organizationItems, planItems] = await Promise.all([
+          getOrganizations(),
+          getSubscriptionPlans(),
+        ]);
         if (!cancelled) {
-          applyOrganizations(items, '', '');
+          applyOrganizations(organizationItems, '', '');
+          applySubscriptionPlans(planItems, '');
         }
       } catch (error) {
         if (!cancelled) {
-          setFeedback({ type: 'error', text: getApiErrorMessage(error, 'Unable to load organizations.') });
+          setFeedback({ type: 'error', text: getApiErrorMessage(error, 'Unable to load organizations and subscription plans.') });
           clearContext();
+          setSubscriptionPlans([]);
         }
       } finally {
         if (!cancelled) {
@@ -257,9 +327,48 @@ export default function AgroPage() {
     return Object.keys(nextErrors).length === 0;
   };
 
+  const validatePlanForm = () => {
+    const nextErrors = {};
+    const deviceLimit = toPositiveInteger(plan.deviceLimit);
+    const fieldLimit = toPositiveInteger(plan.fieldLimit);
+    const priceMonthly = toNonNegativeDecimal(plan.priceMonthly);
+
+    if (!plan.code.trim()) {
+      nextErrors.code = 'Plan code is required.';
+    }
+
+    if (!plan.name.trim()) {
+      nextErrors.name = 'Plan name is required.';
+    }
+
+    if (String(plan.description ?? '').trim().length > 500) {
+      nextErrors.description = 'Description must not exceed 500 characters.';
+    }
+
+    if (Number.isNaN(deviceLimit)) {
+      nextErrors.deviceLimit = 'Device limit must be a positive integer.';
+    }
+
+    if (Number.isNaN(fieldLimit)) {
+      nextErrors.fieldLimit = 'Field limit must be a positive integer.';
+    }
+
+    if (Number.isNaN(priceMonthly)) {
+      nextErrors.priceMonthly = 'Monthly price must be a non-negative number.';
+    }
+
+    setPlanErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
   const handleOrganizationNameChange = (event) => {
-    setOrganization({ name: event.target.value });
+    setOrganization((currentValue) => ({ ...currentValue, name: event.target.value }));
     setOrganizationErrors((currentValue) => ({ ...currentValue, name: '' }));
+  };
+
+  const handleOrganizationChange = (name, value) => {
+    setOrganization((currentValue) => ({ ...currentValue, [name]: value }));
+    setOrganizationErrors((currentValue) => ({ ...currentValue, [name]: '' }));
   };
 
   const handleFarmChange = (name, value) => {
@@ -272,13 +381,23 @@ export default function AgroPage() {
     setFieldErrors((currentValue) => ({ ...currentValue, [name]: '', organizationId: '' }));
   };
 
+  const handlePlanChange = (name, value) => {
+    setPlan((currentValue) => ({ ...currentValue, [name]: value }));
+    setPlanErrors((currentValue) => ({ ...currentValue, [name]: '' }));
+  };
+
   const refreshAll = async () => {
     setRefreshing(true);
     setFeedback({ type: '', text: '' });
-    const nextOrganizationId = await refreshOrganizations(selectedOrganizationId, editingOrganizationId);
+    setLoading(true);
+    const [nextOrganizationId] = await Promise.all([
+      refreshOrganizations(selectedOrganizationId, editingOrganizationId),
+      refreshSubscriptionPlans(editingPlanId),
+    ]);
     if (nextOrganizationId) {
       setContextRefreshToken((value) => value + 1);
     }
+    setLoading(false);
     setRefreshing(false);
   };
 
@@ -296,9 +415,13 @@ export default function AgroPage() {
     setSavingOrg(true);
     setFeedback({ type: '', text: '' });
     try {
+      const payload = {
+        name,
+        subscriptionPlanId: organization.subscriptionPlanId || undefined,
+      };
       const saved = editingOrganizationId
-        ? await updateOrganization(editingOrganizationId, { name })
-        : await createOrganization({ name });
+        ? await updateOrganization(editingOrganizationId, payload)
+        : await createOrganization(payload);
       await refreshOrganizations(saved.id, saved.id);
       setOrganizationErrors({});
       setFeedback({ type: 'success', text: editingOrganizationId ? 'Organization updated successfully.' : 'Organization created successfully.' });
@@ -333,6 +456,72 @@ export default function AgroPage() {
       setFeedback({ type: 'error', text: getApiErrorMessage(error, 'Unable to delete the organization.') });
     } finally {
       setDeletingOrg(false);
+    }
+  };
+
+  const onPlanSave = async (event) => {
+    event.preventDefault();
+    if (!organizationWriteAllowed) {
+      setFeedback({ type: 'error', text: 'Only admins can create or update subscription plans.' });
+      return;
+    }
+    if (!validatePlanForm()) {
+      setFeedback({ type: 'error', text: 'Please correct the highlighted subscription plan fields.' });
+      return;
+    }
+
+    const payload = {
+      code: plan.code.trim(),
+      name: plan.name.trim(),
+      description: clean(plan.description),
+      deviceLimit: toPositiveInteger(plan.deviceLimit),
+      fieldLimit: toPositiveInteger(plan.fieldLimit),
+      priceMonthly: toNonNegativeDecimal(plan.priceMonthly),
+      active: plan.active === 'true',
+    };
+
+    setSavingPlan(true);
+    setFeedback({ type: '', text: '' });
+    try {
+      const saved = editingPlanId
+        ? await updateSubscriptionPlan(editingPlanId, payload)
+        : await createSubscriptionPlan(payload);
+      await refreshSubscriptionPlans(saved.id);
+      await refreshOrganizations(selectedOrganizationId, editingOrganizationId);
+      setPlanErrors({});
+      setFeedback({ type: 'success', text: editingPlanId ? 'Subscription plan updated successfully.' : 'Subscription plan created successfully.' });
+    } catch (error) {
+      setFeedback({ type: 'error', text: getApiErrorMessage(error, 'Unable to save the subscription plan.') });
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  const onPlanDelete = async () => {
+    if (!organizationWriteAllowed) {
+      setFeedback({ type: 'error', text: 'Only admins can delete subscription plans.' });
+      return;
+    }
+    if (!editingPlanId) {
+      setFeedback({ type: 'error', text: 'Select a subscription plan before deleting it.' });
+      return;
+    }
+    if (!window.confirm('Delete the selected subscription plan?')) {
+      return;
+    }
+
+    setDeletingPlan(true);
+    setFeedback({ type: '', text: '' });
+    try {
+      await deleteSubscriptionPlan(editingPlanId);
+      await refreshSubscriptionPlans('');
+      await refreshOrganizations(selectedOrganizationId, editingOrganizationId);
+      setPlanErrors({});
+      setFeedback({ type: 'success', text: 'Subscription plan deleted successfully.' });
+    } catch (error) {
+      setFeedback({ type: 'error', text: getApiErrorMessage(error, 'Unable to delete the subscription plan.') });
+    } finally {
+      setDeletingPlan(false);
     }
   };
 
@@ -519,7 +708,7 @@ export default function AgroPage() {
 
         {currentRole === ROLE_MANAGER ? (
           <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300">
-            Manager access can create and update farms and fields, but organization changes are reserved for admins.
+            Manager access can create and update farms and fields, but organization and subscription-plan changes are reserved for admins.
           </div>
         ) : null}
 
@@ -527,14 +716,16 @@ export default function AgroPage() {
           <MetricCard label="Organizations" value={organizations.length} accent="bg-green-500" />
           <MetricCard label="Farms" value={farms.length} accent="bg-emerald-500" />
           <MetricCard label="Fields" value={fields.length} accent="bg-lime-500" />
-          <MetricCard label="Current Scope" value={currentFarm ? currentFarm.name : currentOrganization?.name || 'None'} accent="bg-teal-500" />
+          <MetricCard label="Plans" value={subscriptionPlans.length} accent="bg-teal-500" />
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <SectionCard
             title="Organizations"
             subtitle="Select an organization to drive farms and fields."
-            action={<Button type="button" variant="secondary" onClick={() => { setEditingOrganizationId(''); setOrganization(EMPTY_ORG); setOrganizationErrors({}); setFeedback({ type: 'info', text: 'Create mode enabled for organizations.' }); }} disabled={!organizationWriteAllowed || savingOrg || deletingOrg}>New Organization</Button>}
+            action={organizationWriteAllowed ? (
+              <Button type="button" variant="secondary" onClick={() => { setEditingOrganizationId(''); setOrganization(EMPTY_ORG); setOrganizationErrors({}); setFeedback({ type: 'info', text: 'Create mode enabled for organizations.' }); }} disabled={savingOrg || deletingOrg}>New Organization</Button>
+            ) : null}
           >
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
               <form onSubmit={onOrganizationSave} className="space-y-4">
@@ -542,6 +733,22 @@ export default function AgroPage() {
                   <Label htmlFor="organizationName">Organization Name</Label>
                   <Input id="organizationName" value={organization.name} onChange={handleOrganizationNameChange} placeholder="Enter organization name" disabled={!organizationWriteAllowed || savingOrg || deletingOrg} className={inputErrorClass(organizationErrors.name)} />
                   {organizationErrors.name ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{organizationErrors.name}</p> : null}
+                </div>
+                <div>
+                  <Label htmlFor="organizationSubscriptionPlan">Subscription Plan</Label>
+                  <Select
+                    id="organizationSubscriptionPlan"
+                    value={organization.subscriptionPlanId || ''}
+                    onChange={(event) => handleOrganizationChange('subscriptionPlanId', event.target.value)}
+                    disabled={!organizationWriteAllowed || savingOrg || deletingOrg}
+                  >
+                    <option value="">No plan assigned</option>
+                    {subscriptionPlans.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.code})
+                      </option>
+                    ))}
+                  </Select>
                 </div>
                 <div className="flex flex-wrap justify-end gap-3">
                   <Button type="submit" disabled={!organizationWriteAllowed || savingOrg || deletingOrg}>{savingOrg ? 'Saving...' : editingOrganizationId ? 'Update Organization' : 'Create Organization'}</Button>
@@ -552,6 +759,7 @@ export default function AgroPage() {
               <DataTable
                 columns={[
                   { label: 'Name', key: 'name' },
+                  { label: 'Plan', key: (item) => item.subscriptionPlanId ? (plansById[item.subscriptionPlanId]?.name || item.subscriptionPlanId) : 'No plan' },
                   { label: 'Created', key: (item) => formatTimestamp(item.createdAt) },
                 ]}
                 rows={organizations}
@@ -577,9 +785,91 @@ export default function AgroPage() {
           </SectionCard>
 
           <SectionCard
+            title="Subscription Plans"
+            subtitle="Inspect plans and, as admin, create or update the plan catalog used by organizations."
+            action={organizationWriteAllowed ? (
+              <Button type="button" variant="secondary" onClick={() => { setEditingPlanId(''); setPlan(EMPTY_PLAN); setPlanErrors({}); setFeedback({ type: 'info', text: 'Create mode enabled for subscription plans.' }); }} disabled={savingPlan || deletingPlan}>
+                New Plan
+              </Button>
+            ) : null}
+          >
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+              <form onSubmit={onPlanSave} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="planCode">Plan Code</Label>
+                    <Input id="planCode" value={plan.code} onChange={(event) => handlePlanChange('code', event.target.value)} placeholder="e.g. BASIC" disabled={!organizationWriteAllowed || savingPlan || deletingPlan} className={inputErrorClass(planErrors.code)} />
+                    {planErrors.code ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{planErrors.code}</p> : null}
+                  </div>
+                  <div>
+                    <Label htmlFor="planName">Plan Name</Label>
+                    <Input id="planName" value={plan.name} onChange={(event) => handlePlanChange('name', event.target.value)} placeholder="Enter plan name" disabled={!organizationWriteAllowed || savingPlan || deletingPlan} className={inputErrorClass(planErrors.name)} />
+                    {planErrors.name ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{planErrors.name}</p> : null}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="planDescription">Description</Label>
+                  <Input id="planDescription" value={plan.description} onChange={(event) => handlePlanChange('description', event.target.value)} placeholder="Short plan description" disabled={!organizationWriteAllowed || savingPlan || deletingPlan} className={inputErrorClass(planErrors.description)} />
+                  {planErrors.description ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{planErrors.description}</p> : null}
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div>
+                    <Label htmlFor="planDeviceLimit">Device Limit</Label>
+                    <Input id="planDeviceLimit" type="number" min="1" step="1" value={plan.deviceLimit} onChange={(event) => handlePlanChange('deviceLimit', event.target.value)} placeholder="e.g. 25" disabled={!organizationWriteAllowed || savingPlan || deletingPlan} className={inputErrorClass(planErrors.deviceLimit)} />
+                    {planErrors.deviceLimit ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{planErrors.deviceLimit}</p> : null}
+                  </div>
+                  <div>
+                    <Label htmlFor="planFieldLimit">Field Limit</Label>
+                    <Input id="planFieldLimit" type="number" min="1" step="1" value={plan.fieldLimit} onChange={(event) => handlePlanChange('fieldLimit', event.target.value)} placeholder="e.g. 10" disabled={!organizationWriteAllowed || savingPlan || deletingPlan} className={inputErrorClass(planErrors.fieldLimit)} />
+                    {planErrors.fieldLimit ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{planErrors.fieldLimit}</p> : null}
+                  </div>
+                  <div>
+                    <Label htmlFor="planPriceMonthly">Monthly Price</Label>
+                    <Input id="planPriceMonthly" type="number" min="0" step="0.01" value={plan.priceMonthly} onChange={(event) => handlePlanChange('priceMonthly', event.target.value)} placeholder="e.g. 19.99" disabled={!organizationWriteAllowed || savingPlan || deletingPlan} className={inputErrorClass(planErrors.priceMonthly)} />
+                    {planErrors.priceMonthly ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{planErrors.priceMonthly}</p> : null}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="planActive">Status</Label>
+                  <Select id="planActive" value={plan.active} onChange={(event) => handlePlanChange('active', event.target.value)} disabled={!organizationWriteAllowed || savingPlan || deletingPlan}>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap justify-end gap-3">
+                  <Button type="submit" disabled={!organizationWriteAllowed || savingPlan || deletingPlan}>{savingPlan ? 'Saving...' : editingPlanId ? 'Update Plan' : 'Create Plan'}</Button>
+                  <Button type="button" variant="destructive" onClick={onPlanDelete} disabled={!organizationWriteAllowed || !editingPlanId || savingPlan || deletingPlan}>{deletingPlan ? 'Deleting...' : 'Delete Plan'}</Button>
+                </div>
+              </form>
+
+              <DataTable
+                columns={[
+                  { label: 'Code', key: 'code' },
+                  { label: 'Name', key: 'name' },
+                  { label: 'Limits', key: (item) => `${item.deviceLimit ?? '-'} devices / ${item.fieldLimit ?? '-'} fields` },
+                  { label: 'Monthly', key: (item) => item.priceMonthly ?? '0.00' },
+                  { label: 'Status', key: (item) => item.active ? 'Active' : 'Inactive' },
+                ]}
+                rows={subscriptionPlans}
+                getRowKey={(item) => item.id}
+                selectedRowKey={editingPlanId}
+                onRowClick={(item) => {
+                  setEditingPlanId(item.id);
+                  setPlan(planForm(item));
+                  setPlanErrors({});
+                  setFeedback({ type: '', text: '' });
+                }}
+                emptyMessage={loading ? 'Loading subscription plans...' : 'No subscription plans found.'}
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard
             title="Farms"
             subtitle={currentOrganization ? `Manage farms for ${currentOrganization.name}.` : 'Select an organization first.'}
-            action={<Button type="button" variant="secondary" onClick={() => { setEditingFarmId(''); setFarm(EMPTY_FARM); setFarmErrors({}); setFeedback({ type: 'info', text: 'Create mode enabled for farms.' }); }} disabled={!agroWriteAllowed || !selectedOrganizationId || savingFarm || deletingFarm}>New Farm</Button>}
+            action={agroWriteAllowed ? (
+              <Button type="button" variant="secondary" onClick={() => { setEditingFarmId(''); setFarm(EMPTY_FARM); setFarmErrors({}); setFeedback({ type: 'info', text: 'Create mode enabled for farms.' }); }} disabled={!selectedOrganizationId || savingFarm || deletingFarm}>New Farm</Button>
+            ) : null}
           >
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
               <form onSubmit={onFarmSave} className="space-y-4">
@@ -637,7 +927,9 @@ export default function AgroPage() {
                 <option value="">All farms</option>
                 {farms.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </Select>
-              <Button type="button" variant="secondary" onClick={() => { setEditingFieldId(''); setField(emptyField(selectedFarmId || farms[0]?.id || '')); setFieldErrors({}); setFeedback({ type: 'info', text: 'Create mode enabled for fields.' }); }} disabled={!agroWriteAllowed || !selectedOrganizationId || !farms.length || savingField || deletingField}>New Field</Button>
+              {agroWriteAllowed ? (
+                <Button type="button" variant="secondary" onClick={() => { setEditingFieldId(''); setField(emptyField(selectedFarmId || farms[0]?.id || '')); setFieldErrors({}); setFeedback({ type: 'info', text: 'Create mode enabled for fields.' }); }} disabled={!selectedOrganizationId || !farms.length || savingField || deletingField}>New Field</Button>
+              ) : null}
             </div>
           }
         >

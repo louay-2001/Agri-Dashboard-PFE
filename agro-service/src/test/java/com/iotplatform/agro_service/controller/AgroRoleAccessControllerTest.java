@@ -2,8 +2,10 @@ package com.iotplatform.agro_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iotplatform.agro_service.dto.CreateFarmRequest;
+import com.iotplatform.agro_service.dto.CreateFieldRequest;
 import com.iotplatform.agro_service.dto.CreateOrganizationRequest;
 import com.iotplatform.agro_service.dto.CreateSubscriptionPlanRequest;
+import com.iotplatform.agro_service.dto.FieldResponse;
 import com.iotplatform.agro_service.dto.FarmResponse;
 import com.iotplatform.agro_service.dto.SubscriptionPlanResponse;
 import com.iotplatform.agro_service.service.FarmService;
@@ -17,6 +19,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -104,6 +107,64 @@ class AgroRoleAccessControllerTest {
                 .andExpect(jsonPath("$.id").value(farmId.toString()))
                 .andExpect(jsonPath("$.organizationId").value(organizationId.toString()))
                 .andExpect(jsonPath("$.name").value("North Farm"));
+    }
+
+    @Test
+    void createFieldRejectsViewerRole() throws Exception {
+        CreateFieldRequest request = new CreateFieldRequest(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Alpha Field",
+                "Wheat",
+                BigDecimal.valueOf(12.50)
+        );
+
+        mockMvc.perform(post("/api/agro/fields")
+                        .header("X-Auth-Validated", "true")
+                        .header("X-User-Role", "viewer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value("The 'viewer' role cannot perform this operation. Allowed roles: admin, manager."));
+
+        verifyNoInteractions(fieldService);
+    }
+
+    @Test
+    void createFieldAllowsManagerRole() throws Exception {
+        UUID organizationId = UUID.randomUUID();
+        UUID farmId = UUID.randomUUID();
+        UUID fieldId = UUID.randomUUID();
+        CreateFieldRequest request = new CreateFieldRequest(
+                organizationId,
+                farmId,
+                "Alpha Field",
+                "Wheat",
+                BigDecimal.valueOf(12.50)
+        );
+        FieldResponse response = FieldResponse.builder()
+                .id(fieldId)
+                .organizationId(organizationId)
+                .farmId(farmId)
+                .name("Alpha Field")
+                .cropType("Wheat")
+                .areaHectare(BigDecimal.valueOf(12.50))
+                .createdAt(Instant.parse("2026-04-24T09:00:00Z"))
+                .build();
+
+        when(fieldService.createField(any(CreateFieldRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/agro/fields")
+                        .header("X-Auth-Validated", "true")
+                        .header("X-User-Role", "manager")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(fieldId.toString()))
+                .andExpect(jsonPath("$.organizationId").value(organizationId.toString()))
+                .andExpect(jsonPath("$.farmId").value(farmId.toString()))
+                .andExpect(jsonPath("$.name").value("Alpha Field"));
     }
 
     @Test

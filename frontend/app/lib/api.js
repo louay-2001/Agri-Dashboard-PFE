@@ -173,6 +173,34 @@ export const deleteOrganization = (id) => requestData({
   url: `/api/agro/organizations/${id}`,
 });
 
+// --- Subscription Plan API ---
+export const getSubscriptionPlans = () => requestData({
+  method: 'get',
+  url: '/api/agro/subscription-plans',
+});
+
+export const getSubscriptionPlan = (id) => requestData({
+  method: 'get',
+  url: `/api/agro/subscription-plans/${id}`,
+});
+
+export const createSubscriptionPlan = (data) => requestData({
+  method: 'post',
+  url: '/api/agro/subscription-plans',
+  data,
+});
+
+export const updateSubscriptionPlan = (id, data) => requestData({
+  method: 'put',
+  url: `/api/agro/subscription-plans/${id}`,
+  data,
+});
+
+export const deleteSubscriptionPlan = (id) => requestData({
+  method: 'delete',
+  url: `/api/agro/subscription-plans/${id}`,
+});
+
 // --- Farm API ---
 export const getFarms = (organizationId) => requestData({
   method: 'get',
