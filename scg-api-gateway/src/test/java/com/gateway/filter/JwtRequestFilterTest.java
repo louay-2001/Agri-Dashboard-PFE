@@ -48,6 +48,19 @@ class JwtRequestFilterTest {
     }
 
     @Test
+    void publicOrganizationsPathBypassesJwtValidation() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/agro/organizations/public").build()
+        );
+        CapturingGatewayFilterChain chain = new CapturingGatewayFilterChain();
+
+        jwtRequestFilter.filter(exchange, chain).block();
+
+        assertThat(chain.invoked).isTrue();
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
+    }
+
+    @Test
     void protectedAgroPathRequiresBearerToken() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/agro/organizations").build()

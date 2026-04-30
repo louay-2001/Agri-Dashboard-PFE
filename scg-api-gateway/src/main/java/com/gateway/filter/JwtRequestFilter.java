@@ -31,7 +31,8 @@ public class JwtRequestFilter implements GlobalFilter, Ordered {
 
     private static final List<String> PUBLIC_PATHS = List.of(
             "/auth",
-            "/actuator"
+            "/actuator",
+            "/api/agro/organizations/public"
     );
 
     private static final List<String> FORWARDED_IDENTITY_HEADERS = List.of(

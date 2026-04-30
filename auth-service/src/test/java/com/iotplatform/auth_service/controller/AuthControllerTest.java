@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -131,5 +132,25 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.message").value("User registered successfully"));
 
         verify(authService).registerUser(eq("manager@example.com"), eq("secret123"), eq(organizationId), eq(UserRole.MANAGER));
+    }
+
+    @Test
+    void signupRejectsUnknownOrganization() throws Exception {
+        UUID organizationId = UUID.randomUUID();
+        when(authService.userExists("manager@example.com")).thenReturn(false);
+        doThrow(new IllegalArgumentException("Organization %s does not exist".formatted(organizationId)))
+                .when(authService)
+                .registerUser("manager@example.com", "secret123", organizationId, UserRole.MANAGER);
+
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", "manager@example.com",
+                                "password", "secret123",
+                                "organizationId", organizationId,
+                                "role", "manager"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Organization %s does not exist".formatted(organizationId)));
     }
 }

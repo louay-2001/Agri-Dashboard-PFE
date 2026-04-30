@@ -1,5 +1,6 @@
 package com.iotplatform.auth_service.service;
 
+import com.iotplatform.auth_service.client.OrganizationDirectoryClient;
 import com.iotplatform.auth_service.model.User;
 import com.iotplatform.auth_service.model.UserRole;
 import com.iotplatform.auth_service.repository.UserRepository;
@@ -25,6 +26,9 @@ class AuthServiceImplTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private OrganizationDirectoryClient organizationDirectoryClient;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -66,6 +70,7 @@ class AuthServiceImplTest {
         User savedUser = buildUser();
         savedUser.setPasswordHash("$2a$10$encoded");
 
+        when(organizationDirectoryClient.existsById(organizationId)).thenReturn(true);
         when(passwordEncoder.encode("secret123")).thenReturn("$2a$10$encoded");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -75,6 +80,18 @@ class AuthServiceImplTest {
         assertEquals("$2a$10$encoded", createdUser.getPasswordHash());
         assertEquals(organizationId, createdUser.getOrganizationId());
         assertEquals(UserRole.MANAGER, createdUser.getRole());
+    }
+
+    @Test
+    void registerUserRejectsUnknownOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        when(organizationDirectoryClient.existsById(organizationId)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> authService.registerUser("Manager@Example.com", "secret123", organizationId, UserRole.MANAGER));
+
+        assertEquals("Organization %s does not exist".formatted(organizationId), exception.getMessage());
+        verify(userRepository, never()).save(any(User.class));
     }
 
     private User buildUser() {

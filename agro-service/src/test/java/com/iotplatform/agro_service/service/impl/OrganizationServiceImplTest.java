@@ -2,6 +2,7 @@ package com.iotplatform.agro_service.service.impl;
 
 import com.iotplatform.agro_service.dto.CreateOrganizationRequest;
 import com.iotplatform.agro_service.dto.OrganizationResponse;
+import com.iotplatform.agro_service.dto.PublicOrganizationResponse;
 import com.iotplatform.agro_service.entity.Organization;
 import com.iotplatform.agro_service.exception.ResourceNotFoundException;
 import com.iotplatform.agro_service.mapper.OrganizationMapper;
@@ -15,11 +16,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,5 +81,28 @@ class OrganizationServiceImplTest {
                 () -> service.createOrganization(new CreateOrganizationRequest("Demo Org", subscriptionPlanId)));
 
         assertEquals("Subscription plan %s was not found".formatted(subscriptionPlanId), exception.getMessage());
+    }
+
+    @Test
+    void getPublicOrganizationsReturnsOnlyIdAndName() {
+        UUID organizationId = UUID.randomUUID();
+        Organization organization = new Organization();
+        organization.setId(organizationId);
+        organization.setName("Demo Org");
+        organization.setSubscriptionPlanId(UUID.randomUUID());
+        organization.setCreatedAt(Instant.parse("2026-04-22T10:00:00Z"));
+
+        when(organizationRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(organization));
+
+        OrganizationServiceImpl service = new OrganizationServiceImpl(
+                organizationRepository, farmRepository, subscriptionPlanRepository, organizationMapper
+        );
+
+        List<PublicOrganizationResponse> responses = service.getPublicOrganizations();
+
+        assertEquals(1, responses.size());
+        assertEquals(organizationId, responses.get(0).getId());
+        assertEquals("Demo Org", responses.get(0).getName());
+        verify(organizationRepository).findAllByOrderByCreatedAtDesc();
     }
 }

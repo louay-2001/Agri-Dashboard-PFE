@@ -1,5 +1,6 @@
 package com.iotplatform.auth_service.service;
 
+import com.iotplatform.auth_service.client.OrganizationDirectoryClient;
 import com.iotplatform.auth_service.model.User;
 import com.iotplatform.auth_service.model.UserRole;
 import com.iotplatform.auth_service.repository.UserRepository;
@@ -15,10 +16,14 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final OrganizationDirectoryClient organizationDirectoryClient;
 
-    public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthServiceImpl(UserRepository userRepository,
+                           PasswordEncoder passwordEncoder,
+                           OrganizationDirectoryClient organizationDirectoryClient) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.organizationDirectoryClient = organizationDirectoryClient;
     }
 
     @Override
@@ -53,6 +58,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public User registerUser(String email, String password, UUID organizationId, UserRole role) {
+        if (!organizationDirectoryClient.existsById(organizationId)) {
+            throw new IllegalArgumentException("Organization %s does not exist".formatted(organizationId));
+        }
+
         User user = new User();
         user.setEmail(normalizeEmail(email));
         user.setPasswordHash(passwordEncoder.encode(password));

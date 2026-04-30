@@ -8,11 +8,11 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
-import { getApiErrorMessage, signin, signup } from '../lib/api';
+import { getApiErrorMessage, getPublicOrganizations, signin, signup } from '../lib/api';
 import { DEFAULT_AUTH_REDIRECT, getAuthSession, saveAuthSession } from '../lib/auth';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EMPTY_ORGANIZATIONS_MESSAGE = 'Aucune organisation disponible. Veuillez contacter l\u2019administrateur.';
 
 const resolveRedirectTarget = (searchParams) => {
   const redirect = searchParams.get('redirect');
@@ -35,8 +35,12 @@ export default function RegisterPage() {
   const [feedback, setFeedback] = useState({ type: '', text: '' });
   const [submitting, setSubmitting] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [organizations, setOrganizations] = useState([]);
+  const [organizationsLoading, setOrganizationsLoading] = useState(true);
+  const [organizationsError, setOrganizationsError] = useState('');
 
   useEffect(() => {
+    let active = true;
     const searchParams = new URLSearchParams(window.location.search);
     const nextRedirectTarget = resolveRedirectTarget(searchParams);
     const session = getAuthSession();
@@ -45,10 +49,51 @@ export default function RegisterPage() {
 
     if (session?.token) {
       router.replace(nextRedirectTarget);
-      return;
+      return () => {
+        active = false;
+      };
     }
 
     setCheckingSession(false);
+
+    const loadOrganizations = async () => {
+      setOrganizationsLoading(true);
+      setOrganizationsError('');
+
+      try {
+        const organizationItems = await getPublicOrganizations();
+
+        if (!active) {
+          return;
+        }
+
+        const nextOrganizations = Array.isArray(organizationItems) ? organizationItems : [];
+        setOrganizations(nextOrganizations);
+        setFormData((currentValue) => ({
+          ...currentValue,
+          organizationId: nextOrganizations.some((organization) => organization.id === currentValue.organizationId)
+            ? currentValue.organizationId
+            : '',
+        }));
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setOrganizations([]);
+        setOrganizationsError(getApiErrorMessage(error, 'Unable to load organizations.'));
+      } finally {
+        if (active) {
+          setOrganizationsLoading(false);
+        }
+      }
+    };
+
+    void loadOrganizations();
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   const validateForm = () => {
@@ -72,10 +117,8 @@ export default function RegisterPage() {
       nextErrors.confirmPassword = 'Passwords do not match.';
     }
 
-    if (!formData.organizationId.trim()) {
-      nextErrors.organizationId = 'Organization ID is required.';
-    } else if (!uuidPattern.test(formData.organizationId.trim())) {
-      nextErrors.organizationId = 'Organization ID must be a valid UUID.';
+    if (!formData.organizationId) {
+      nextErrors.organizationId = 'Select an organization.';
     }
 
     if (!formData.role) {
@@ -121,7 +164,7 @@ export default function RegisterPage() {
       await signup({
         email,
         password,
-        organizationId: formData.organizationId.trim(),
+        organizationId: formData.organizationId,
         role: formData.role,
       });
 
@@ -177,10 +220,10 @@ export default function RegisterPage() {
     <AuthShell
       eyebrow="Agritech Auth"
       title="Create Account"
-      description="Register a tenant-scoped user with an organization ID and role, then start using the protected agritech pages immediately."
+      description="Register a tenant-scoped user by choosing an existing organization and role, then start using the protected agritech pages immediately."
       sideEyebrow="Registration Notes"
       sideTitle="Tenant-aware accounts"
-      sideDescription="New users are tied to an organization and role so the frontend and gateway can carry tenant context in the JWT."
+      sideDescription="New users are tied to an existing organization and role so the frontend and gateway can carry tenant context in the JWT."
       footer={(
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <Link
@@ -201,7 +244,7 @@ export default function RegisterPage() {
               New users are tied to an <span className="font-medium text-white">organizationId</span> and a <span className="font-medium text-white">role</span> so the frontend and gateway can carry tenant context in the JWT.
             </p>
             <p>
-              For this local flow, enter an existing organization UUID from the agro-service data you already created.
+              For this flow, choose one of the organizations exposed by the agro service before creating the account.
             </p>
           </div>
 
@@ -274,16 +317,33 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <Label htmlFor="organizationId">Organization ID</Label>
-          <Input
+          <Label htmlFor="organizationId">Organization</Label>
+          <Select
             id="organizationId"
             name="organizationId"
             value={formData.organizationId}
             onChange={handleChange}
-            placeholder="UUID from agro-service"
+            disabled={organizationsLoading || submitting || !organizations.length}
             className={inputErrorClass(formErrors.organizationId)}
-          />
+          >
+            <option value="">
+              {organizationsLoading
+                ? 'Loading organizations...'
+                : organizations.length
+                  ? 'Select organization'
+                  : 'No organization available'}
+            </option>
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.name}
+              </option>
+            ))}
+          </Select>
           {formErrors.organizationId ? <p className="mt-1 text-xs text-red-600">{formErrors.organizationId}</p> : null}
+          {!formErrors.organizationId && organizationsError ? <p className="mt-1 text-xs text-red-600">{organizationsError}</p> : null}
+          {!formErrors.organizationId && !organizationsLoading && !organizationsError && !organizations.length ? (
+            <p className="mt-1 text-xs text-amber-700">{EMPTY_ORGANIZATIONS_MESSAGE}</p>
+          ) : null}
         </div>
 
         <div>
@@ -303,7 +363,11 @@ export default function RegisterPage() {
         </div>
 
         <div className="md:col-span-2">
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={submitting || organizationsLoading || !formData.organizationId || !organizations.length}
+          >
             {submitting ? 'Creating account...' : 'Register and Continue'}
           </Button>
         </div>

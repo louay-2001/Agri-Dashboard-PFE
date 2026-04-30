@@ -1,6 +1,7 @@
 package com.iotplatform.agro_service.mapper;
 
 import com.iotplatform.agro_service.dto.OrganizationResponse;
+import com.iotplatform.agro_service.dto.PublicOrganizationResponse;
 import com.iotplatform.agro_service.entity.Organization;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,13 @@ public class OrganizationMapper {
                 .name(organization.getName())
                 .subscriptionPlanId(organization.getSubscriptionPlanId())
                 .createdAt(organization.getCreatedAt())
+                .build();
+    }
+
+    public PublicOrganizationResponse toPublicResponse(Organization organization) {
+        return PublicOrganizationResponse.builder()
+                .id(organization.getId())
+                .name(organization.getName())
                 .build();
     }
 }

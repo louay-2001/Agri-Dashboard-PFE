@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iotplatform.agro_service.dto.CreateFarmRequest;
 import com.iotplatform.agro_service.dto.CreateFieldRequest;
 import com.iotplatform.agro_service.dto.CreateOrganizationRequest;
+import com.iotplatform.agro_service.dto.PublicOrganizationResponse;
 import com.iotplatform.agro_service.dto.CreateSubscriptionPlanRequest;
 import com.iotplatform.agro_service.dto.FieldResponse;
 import com.iotplatform.agro_service.dto.FarmResponse;
@@ -21,11 +22,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -65,6 +69,26 @@ class AgroRoleAccessControllerTest {
                         .value("The 'manager' role cannot perform this operation. Allowed roles: admin."));
 
         verifyNoInteractions(organizationService);
+    }
+
+    @Test
+    void publicOrganizationsEndpointIsAccessibleWithoutAuth() throws Exception {
+        UUID organizationId = UUID.randomUUID();
+        when(organizationService.getPublicOrganizations()).thenReturn(List.of(
+                PublicOrganizationResponse.builder()
+                        .id(organizationId)
+                        .name("Demo Org")
+                        .build()
+        ));
+
+        mockMvc.perform(get("/api/agro/organizations/public"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(organizationId.toString()))
+                .andExpect(jsonPath("$[0].name").value("Demo Org"))
+                .andExpect(jsonPath("$[0].subscriptionPlanId").doesNotExist())
+                .andExpect(jsonPath("$[0].createdAt").doesNotExist());
+
+        verify(organizationService).getPublicOrganizations();
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.iotplatform.agro_service.controller;
 
 import com.iotplatform.agro_service.dto.CreateOrganizationRequest;
 import com.iotplatform.agro_service.dto.OrganizationResponse;
+import com.iotplatform.agro_service.dto.PublicOrganizationResponse;
 import com.iotplatform.agro_service.dto.UpdateOrganizationRequest;
 import com.iotplatform.agro_service.security.RoleAccess;
 import com.iotplatform.agro_service.service.OrganizationService;
@@ -40,6 +41,11 @@ public class OrganizationController {
     @GetMapping
     public ResponseEntity<List<OrganizationResponse>> getOrganizations() {
         return ResponseEntity.ok(organizationService.getOrganizations());
+    }
+
+    @GetMapping("/public")
+    public ResponseEntity<List<PublicOrganizationResponse>> getPublicOrganizations() {
+        return ResponseEntity.ok(organizationService.getPublicOrganizations());
     }
 
     @GetMapping("/{id}")

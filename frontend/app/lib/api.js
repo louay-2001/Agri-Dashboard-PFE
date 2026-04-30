@@ -151,6 +151,11 @@ export const getOrganizations = () => requestData({
   url: '/api/agro/organizations',
 });
 
+export const getPublicOrganizations = () => requestData({
+  method: 'get',
+  url: '/api/agro/organizations/public',
+});
+
 export const getOrganization = (id) => requestData({
   method: 'get',
   url: `/api/agro/organizations/${id}`,

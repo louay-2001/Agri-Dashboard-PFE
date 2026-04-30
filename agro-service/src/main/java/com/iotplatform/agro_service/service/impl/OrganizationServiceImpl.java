@@ -2,6 +2,7 @@ package com.iotplatform.agro_service.service.impl;
 
 import com.iotplatform.agro_service.dto.CreateOrganizationRequest;
 import com.iotplatform.agro_service.dto.OrganizationResponse;
+import com.iotplatform.agro_service.dto.PublicOrganizationResponse;
 import com.iotplatform.agro_service.dto.UpdateOrganizationRequest;
 import com.iotplatform.agro_service.entity.Organization;
 import com.iotplatform.agro_service.exception.ConflictException;
@@ -43,6 +44,15 @@ public class OrganizationServiceImpl implements OrganizationService {
         return organizationRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
                 .map(organizationMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PublicOrganizationResponse> getPublicOrganizations() {
+        return organizationRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(organizationMapper::toPublicResponse)
                 .toList();
     }
 

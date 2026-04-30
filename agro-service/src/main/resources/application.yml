@@ -10,6 +10,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
+    defer-datasource-initialization: true
     open-in-view: false
     show-sql: true
     properties:
@@ -17,6 +18,9 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+  sql:
+    init:
+      mode: always
 
 server:
   port: 8083

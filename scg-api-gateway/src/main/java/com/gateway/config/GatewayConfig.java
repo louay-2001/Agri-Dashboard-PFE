@@ -41,6 +41,9 @@ public class GatewayConfig {
                         .uri("lb://service-traitement"))
 
                 // Agro Service
+                .route("agro-service-public-organizations", r -> r.path("/api/agro/organizations/public")
+                        .uri("lb://agro-service"))
+
                 .route("agro-service", r -> r.path("/api/agro/**")
                         .uri("lb://agro-service"))
 
