@@ -58,16 +58,30 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public User registerUser(String email, String password, UUID organizationId, UserRole role) {
-        if (!organizationDirectoryClient.existsById(organizationId)) {
-            throw new IllegalArgumentException("Organization %s does not exist".formatted(organizationId));
-        }
+        UUID scopedOrganizationId = resolveOrganizationIdForRole(organizationId, role);
 
         User user = new User();
         user.setEmail(normalizeEmail(email));
         user.setPasswordHash(passwordEncoder.encode(password));
-        user.setOrganizationId(organizationId);
+        user.setOrganizationId(scopedOrganizationId);
         user.setRole(role);
         return userRepository.save(user);
+    }
+
+    private UUID resolveOrganizationIdForRole(UUID organizationId, UserRole role) {
+        if (role == UserRole.ADMIN) {
+            return null;
+        }
+
+        if (organizationId == null) {
+            throw new IllegalArgumentException("organizationId is required for MANAGER and VIEWER");
+        }
+
+        if (!organizationDirectoryClient.existsById(organizationId)) {
+            throw new IllegalArgumentException("Organization %s does not exist".formatted(organizationId));
+        }
+
+        return organizationId;
     }
 
     private String normalizeEmail(String email) {

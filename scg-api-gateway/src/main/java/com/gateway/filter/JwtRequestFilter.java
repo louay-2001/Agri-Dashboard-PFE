@@ -83,7 +83,12 @@ public class JwtRequestFilter implements GlobalFilter, Ordered {
             String role = normalizeClaim(claims.get("role"));
             String roles = normalizeClaim(claims.get("roles"));
 
-            if (email.isBlank() || userId.isBlank() || organizationId.isBlank() || role.isBlank()) {
+            if (email.isBlank() || userId.isBlank() || role.isBlank()) {
+                return onError(exchange, "Token is missing required claims", HttpStatus.UNAUTHORIZED);
+            }
+
+            boolean requiresOrganization = !"admin".equalsIgnoreCase(role);
+            if (requiresOrganization && organizationId.isBlank()) {
                 return onError(exchange, "Token is missing required claims", HttpStatus.UNAUTHORIZED);
             }
 
@@ -98,7 +103,9 @@ public class JwtRequestFilter implements GlobalFilter, Ordered {
                         headers.add("X-User-Id", userId);
                         headers.add("X-User-Email", email);
                         headers.add("X-User-Name", email);
-                        headers.add("X-User-Organization-Id", organizationId);
+                        if (!organizationId.isBlank()) {
+                            headers.add("X-User-Organization-Id", organizationId);
+                        }
                         headers.add("X-User-Role", role);
                         headers.add("X-User-Roles", normalizedRoles);
                     })

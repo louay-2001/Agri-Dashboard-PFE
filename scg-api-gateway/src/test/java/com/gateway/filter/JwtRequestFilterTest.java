@@ -100,17 +100,41 @@ class JwtRequestFilterTest {
         assertThat(forwardedRequest.getHeaders().getFirst("X-User-Roles")).isEqualTo("ROLE_ADMIN");
     }
 
+    @Test
+    void protectedPathAllowsAdminWithoutOrganizationClaim() {
+        String token = generateToken(42L, "admin@example.com", null, "admin");
+
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/agro/organizations")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .build()
+        );
+        CapturingGatewayFilterChain chain = new CapturingGatewayFilterChain();
+
+        jwtRequestFilter.filter(exchange, chain).block();
+
+        assertThat(chain.invoked).isTrue();
+        ServerHttpRequest forwardedRequest = chain.exchange.getRequest();
+        assertThat(forwardedRequest.getHeaders().getFirst("X-User-Organization-Id")).isNull();
+        assertThat(forwardedRequest.getHeaders().getFirst("X-User-Role")).isEqualTo("admin");
+    }
+
     private String generateToken(Long userId, String email, UUID organizationId, String role) {
         SecretKey key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .setSubject(email)
                 .claim("userId", userId)
-                .claim("organizationId", organizationId.toString())
                 .claim("role", role)
                 .claim("roles", "ROLE_" + role.toUpperCase())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 60000))
+                .setExpiration(new Date(System.currentTimeMillis() + 60000));
+
+        if (organizationId != null) {
+            builder.claim("organizationId", organizationId.toString());
+        }
+
+        return builder
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }

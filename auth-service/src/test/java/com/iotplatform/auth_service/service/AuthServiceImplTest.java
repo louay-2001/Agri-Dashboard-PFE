@@ -67,8 +67,6 @@ class AuthServiceImplTest {
     @Test
     void registerUserStoresNormalizedEmailHashedPasswordAndTenantFields() {
         UUID organizationId = UUID.randomUUID();
-        User savedUser = buildUser();
-        savedUser.setPasswordHash("$2a$10$encoded");
 
         when(organizationDirectoryClient.existsById(organizationId)).thenReturn(true);
         when(passwordEncoder.encode("secret123")).thenReturn("$2a$10$encoded");
@@ -83,12 +81,74 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void registerViewerUserStoresNormalizedEmailHashedPasswordAndTenantFields() {
+        UUID organizationId = UUID.randomUUID();
+
+        when(organizationDirectoryClient.existsById(organizationId)).thenReturn(true);
+        when(passwordEncoder.encode("secret123")).thenReturn("$2a$10$encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User createdUser = authService.registerUser("Viewer@Example.com", "secret123", organizationId, UserRole.VIEWER);
+
+        assertEquals("viewer@example.com", createdUser.getEmail());
+        assertEquals("$2a$10$encoded", createdUser.getPasswordHash());
+        assertEquals(organizationId, createdUser.getOrganizationId());
+        assertEquals(UserRole.VIEWER, createdUser.getRole());
+    }
+
+    @Test
+    void registerAdminUserStoresNullOrganizationId() {
+        when(passwordEncoder.encode("secret123")).thenReturn("$2a$10$encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User createdUser = authService.registerUser("Admin@Example.com", "secret123", UUID.randomUUID(), UserRole.ADMIN);
+
+        assertEquals("admin@example.com", createdUser.getEmail());
+        assertEquals("$2a$10$encoded", createdUser.getPasswordHash());
+        assertNull(createdUser.getOrganizationId());
+        assertEquals(UserRole.ADMIN, createdUser.getRole());
+        verify(organizationDirectoryClient, never()).existsById(any(UUID.class));
+    }
+
+    @Test
+    void registerManagerUserRejectsMissingOrganization() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> authService.registerUser("Manager@Example.com", "secret123", null, UserRole.MANAGER));
+
+        assertEquals("organizationId is required for MANAGER and VIEWER", exception.getMessage());
+        verify(userRepository, never()).save(any(User.class));
+        verify(organizationDirectoryClient, never()).existsById(any(UUID.class));
+    }
+
+    @Test
+    void registerViewerUserRejectsMissingOrganization() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> authService.registerUser("Viewer@Example.com", "secret123", null, UserRole.VIEWER));
+
+        assertEquals("organizationId is required for MANAGER and VIEWER", exception.getMessage());
+        verify(userRepository, never()).save(any(User.class));
+        verify(organizationDirectoryClient, never()).existsById(any(UUID.class));
+    }
+
+    @Test
     void registerUserRejectsUnknownOrganization() {
         UUID organizationId = UUID.randomUUID();
         when(organizationDirectoryClient.existsById(organizationId)).thenReturn(false);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> authService.registerUser("Manager@Example.com", "secret123", organizationId, UserRole.MANAGER));
+
+        assertEquals("Organization %s does not exist".formatted(organizationId), exception.getMessage());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void registerViewerUserRejectsUnknownOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        when(organizationDirectoryClient.existsById(organizationId)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> authService.registerUser("Viewer@Example.com", "secret123", organizationId, UserRole.VIEWER));
 
         assertEquals("Organization %s does not exist".formatted(organizationId), exception.getMessage());
         verify(userRepository, never()).save(any(User.class));

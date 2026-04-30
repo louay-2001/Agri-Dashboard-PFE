@@ -17,7 +17,6 @@ public class SignupRequest {
     @NotBlank(message = "Password is required")
     private String password;
 
-    @NotNull(message = "Organization ID is required")
     private UUID organizationId;
 
     @NotNull(message = "Role is required")

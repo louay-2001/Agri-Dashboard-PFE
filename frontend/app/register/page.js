@@ -13,6 +13,7 @@ import { DEFAULT_AUTH_REDIRECT, getAuthSession, saveAuthSession } from '../lib/a
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMPTY_ORGANIZATIONS_MESSAGE = 'Aucune organisation disponible. Veuillez contacter l\u2019administrateur.';
+const ADMIN_ROLE = 'admin';
 
 const resolveRedirectTarget = (searchParams) => {
   const redirect = searchParams.get('redirect');
@@ -38,9 +39,9 @@ export default function RegisterPage() {
   const [organizations, setOrganizations] = useState([]);
   const [organizationsLoading, setOrganizationsLoading] = useState(true);
   const [organizationsError, setOrganizationsError] = useState('');
+  const requiresOrganization = formData.role !== ADMIN_ROLE;
 
   useEffect(() => {
-    let active = true;
     const searchParams = new URLSearchParams(window.location.search);
     const nextRedirectTarget = resolveRedirectTarget(searchParams);
     const session = getAuthSession();
@@ -49,12 +50,26 @@ export default function RegisterPage() {
 
     if (session?.token) {
       router.replace(nextRedirectTarget);
-      return () => {
-        active = false;
-      };
+      return;
     }
 
     setCheckingSession(false);
+  }, [router]);
+
+  useEffect(() => {
+    if (!requiresOrganization) {
+      setOrganizationsLoading(false);
+      setOrganizationsError('');
+      setFormData((currentValue) => currentValue.organizationId
+        ? { ...currentValue, organizationId: '' }
+        : currentValue);
+      setFormErrors((currentValue) => currentValue.organizationId
+        ? { ...currentValue, organizationId: '' }
+        : currentValue);
+      return;
+    }
+
+    let active = true;
 
     const loadOrganizations = async () => {
       setOrganizationsLoading(true);
@@ -94,7 +109,7 @@ export default function RegisterPage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [requiresOrganization]);
 
   const validateForm = () => {
     const nextErrors = {};
@@ -117,7 +132,7 @@ export default function RegisterPage() {
       nextErrors.confirmPassword = 'Passwords do not match.';
     }
 
-    if (!formData.organizationId) {
+    if (requiresOrganization && !formData.organizationId) {
       nextErrors.organizationId = 'Select an organization.';
     }
 
@@ -159,14 +174,15 @@ export default function RegisterPage() {
 
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
+    const signupPayload = {
+      email,
+      password,
+      role: formData.role,
+      ...(requiresOrganization ? { organizationId: formData.organizationId } : {}),
+    };
 
     try {
-      await signup({
-        email,
-        password,
-        organizationId: formData.organizationId,
-        role: formData.role,
-      });
+      await signup(signupPayload);
 
       const loginResponse = await signin({
         email,
@@ -220,10 +236,10 @@ export default function RegisterPage() {
     <AuthShell
       eyebrow="Agritech Auth"
       title="Create Account"
-      description="Register a tenant-scoped user by choosing an existing organization and role, then start using the protected agritech pages immediately."
+      description="Register an admin directly, or choose an existing organization when signing up as a manager or viewer."
       sideEyebrow="Registration Notes"
       sideTitle="Tenant-aware accounts"
-      sideDescription="New users are tied to an existing organization and role so the frontend and gateway can carry tenant context in the JWT."
+      sideDescription="Admins can register without an organization. Managers and viewers stay tied to an existing organization so tenant context still flows through the JWT."
       footer={(
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <Link
@@ -241,10 +257,10 @@ export default function RegisterPage() {
         <>
           <div className="space-y-4 text-sm text-neutral-300">
             <p>
-              New users are tied to an <span className="font-medium text-white">organizationId</span> and a <span className="font-medium text-white">role</span> so the frontend and gateway can carry tenant context in the JWT.
+              Admin accounts can be created without an organization. Manager and viewer accounts still require an <span className="font-medium text-white">organizationId</span> plus a <span className="font-medium text-white">role</span>.
             </p>
             <p>
-              For this flow, choose one of the organizations exposed by the agro service before creating the account.
+              When you switch back from admin to manager or viewer, the same page brings the organization selector back and requires a valid choice.
             </p>
           </div>
 
@@ -317,36 +333,6 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <Label htmlFor="organizationId">Organization</Label>
-          <Select
-            id="organizationId"
-            name="organizationId"
-            value={formData.organizationId}
-            onChange={handleChange}
-            disabled={organizationsLoading || submitting || !organizations.length}
-            className={inputErrorClass(formErrors.organizationId)}
-          >
-            <option value="">
-              {organizationsLoading
-                ? 'Loading organizations...'
-                : organizations.length
-                  ? 'Select organization'
-                  : 'No organization available'}
-            </option>
-            {organizations.map((organization) => (
-              <option key={organization.id} value={organization.id}>
-                {organization.name}
-              </option>
-            ))}
-          </Select>
-          {formErrors.organizationId ? <p className="mt-1 text-xs text-red-600">{formErrors.organizationId}</p> : null}
-          {!formErrors.organizationId && organizationsError ? <p className="mt-1 text-xs text-red-600">{organizationsError}</p> : null}
-          {!formErrors.organizationId && !organizationsLoading && !organizationsError && !organizations.length ? (
-            <p className="mt-1 text-xs text-amber-700">{EMPTY_ORGANIZATIONS_MESSAGE}</p>
-          ) : null}
-        </div>
-
-        <div>
           <Label htmlFor="role">Role</Label>
           <Select
             id="role"
@@ -362,11 +348,43 @@ export default function RegisterPage() {
           {formErrors.role ? <p className="mt-1 text-xs text-red-600">{formErrors.role}</p> : null}
         </div>
 
+        {requiresOrganization ? (
+          <div>
+            <Label htmlFor="organizationId">Organization</Label>
+            <Select
+              id="organizationId"
+              name="organizationId"
+              value={formData.organizationId}
+              onChange={handleChange}
+              disabled={organizationsLoading || submitting || !organizations.length}
+              className={inputErrorClass(formErrors.organizationId)}
+            >
+              <option value="">
+                {organizationsLoading
+                  ? 'Loading organizations...'
+                  : organizations.length
+                    ? 'Select organization'
+                    : 'No organization available'}
+              </option>
+              {organizations.map((organization) => (
+                <option key={organization.id} value={organization.id}>
+                  {organization.name}
+                </option>
+              ))}
+            </Select>
+            {formErrors.organizationId ? <p className="mt-1 text-xs text-red-600">{formErrors.organizationId}</p> : null}
+            {!formErrors.organizationId && organizationsError ? <p className="mt-1 text-xs text-red-600">{organizationsError}</p> : null}
+            {!formErrors.organizationId && !organizationsLoading && !organizationsError && !organizations.length ? (
+              <p className="mt-1 text-xs text-amber-700">{EMPTY_ORGANIZATIONS_MESSAGE}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="md:col-span-2">
           <Button
             type="submit"
             className="w-full"
-            disabled={submitting || organizationsLoading || !formData.organizationId || !organizations.length}
+            disabled={submitting || (requiresOrganization && (organizationsLoading || !formData.organizationId || !organizations.length))}
           >
             {submitting ? 'Creating account...' : 'Register and Continue'}
           </Button>
