@@ -85,6 +85,8 @@ const requestData = async (config) => {
   return response.data;
 };
 
+const requestLegacyData = (config) => requestData(config);
+
 const normalizeReading = (reading) => {
   if (!reading || typeof reading !== 'object') {
     return reading;
@@ -363,7 +365,7 @@ export const getLatestReading = async (organizationId, deviceId) => {
 /** @deprecated Legacy monitoring helper retained only for compile compatibility. */
 export const getAllAlerts = async () => {
   warnDeprecated('getAllAlerts', 'organization/farm/field/device/readings views');
-  return requestData({
+  return requestLegacyData({
     method: 'get',
     url: '/api/alerts/all',
   });
@@ -381,7 +383,7 @@ export const acknowledgeAlert = async (id) => {
 /** @deprecated Legacy monitoring helper retained only for compile compatibility. */
 export const getDashboardSummary = async () => {
   warnDeprecated('getDashboardSummary', 'organization/farm/field/device/readings views');
-  return requestData({
+  return requestLegacyData({
     method: 'get',
     url: '/api/dashboard/summary',
   });
@@ -390,11 +392,27 @@ export const getDashboardSummary = async () => {
 /** @deprecated Legacy monitoring helper retained only for compile compatibility. */
 export const getDashboardAnalytics = async () => {
   warnDeprecated('getDashboardAnalytics', 'organization/farm/field/device/readings views');
-  return requestData({
+  return requestLegacyData({
     method: 'get',
     url: '/api/dashboard/analytics',
   });
 };
+
+// --- Isolated legacy monitoring pages ---
+export const getLegacyAlerts = () => requestLegacyData({
+  method: 'get',
+  url: '/api/alerts/all',
+});
+
+export const getLegacyDashboardSummary = () => requestLegacyData({
+  method: 'get',
+  url: '/api/dashboard/summary',
+});
+
+export const getLegacyDashboardAnalytics = () => requestLegacyData({
+  method: 'get',
+  url: '/api/dashboard/analytics',
+});
 
 /** @deprecated Legacy gateway helper retained only for compile compatibility. */
 export const getAllGateways = async () => {

@@ -8,9 +8,9 @@ import MetricCard from '../components/demo/MetricCard';
 import SectionCard from '../components/demo/SectionCard';
 import { Button } from '../components/ui/button';
 import {
-  getAllAlerts,
   getApiErrorMessage,
-  getDashboardSummary,
+  getLegacyAlerts,
+  getLegacyDashboardSummary,
 } from '../lib/api';
 
 const formatUpdatedAt = (value) => {
@@ -28,6 +28,7 @@ export default function MonitoringPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [alertsNotice, setAlertsNotice] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
@@ -41,26 +42,35 @@ export default function MonitoringPage() {
     async function loadMonitoring() {
       if (!cancelled) {
         setError('');
+        setAlertsNotice('');
         setRefreshing(true);
       }
 
       try {
-        const [summaryData, alertData] = await Promise.all([
-          getDashboardSummary(),
-          getAllAlerts(),
+        const [summaryResult, alertsResult] = await Promise.allSettled([
+          getLegacyDashboardSummary(),
+          getLegacyAlerts(),
         ]);
 
         if (cancelled) {
           return;
         }
 
-        setSummary(summaryData);
-        setAlerts(Array.isArray(alertData) ? alertData : []);
-        setLastUpdatedAt(Date.now());
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(getApiErrorMessage(loadError, 'Unable to load legacy monitoring data.'));
+        if (summaryResult.status === 'fulfilled') {
+          setSummary(summaryResult.value);
+        } else {
+          setSummary(null);
+          setError(getApiErrorMessage(summaryResult.reason, 'Unable to load legacy monitoring data.'));
         }
+
+        if (alertsResult.status === 'fulfilled') {
+          setAlerts(Array.isArray(alertsResult.value) ? alertsResult.value : []);
+        } else {
+          setAlerts([]);
+          setAlertsNotice('Alerts module not available yet.');
+        }
+
+        setLastUpdatedAt(Date.now());
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -129,11 +139,16 @@ export default function MonitoringPage() {
             title="Alarm Console"
             subtitle="Read-only alert stream from the legacy alert-service endpoints."
           >
+            {alertsNotice ? (
+              <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                {alertsNotice}
+              </div>
+            ) : null}
             <div className="h-[480px] overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800">
               <AlarmConsole
                 alerts={alerts}
                 loading={loading}
-                error={error}
+                error=""
                 readOnly
               />
             </div>

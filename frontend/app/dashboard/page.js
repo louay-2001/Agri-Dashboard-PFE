@@ -64,7 +64,9 @@ export default function DashboardPage() {
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [overviewError, setOverviewError] = useState('');
+  const [historyError, setHistoryError] = useState('');
+  const [latestReadingsNotice, setLatestReadingsNotice] = useState('');
 
   const organizationName = organizations.find((organization) => organization.id === selectedOrganizationId)?.name || 'No organization selected';
   const farmNamesById = Object.fromEntries(farms.map((farm) => [farm.id, farm.name]));
@@ -76,7 +78,7 @@ export default function DashboardPage() {
 
     async function loadOrganizations() {
       setOverviewLoading(true);
-      setError('');
+      setOverviewError('');
 
       try {
         const organizationData = await getOrganizations();
@@ -92,7 +94,7 @@ export default function DashboardPage() {
         });
       } catch (loadError) {
         if (!cancelled) {
-          setError(getApiErrorMessage(loadError, 'Unable to load organizations.'));
+          setOverviewError(getApiErrorMessage(loadError, 'Unable to load organizations.'));
         }
       } finally {
         if (!cancelled) {
@@ -123,7 +125,9 @@ export default function DashboardPage() {
 
     async function loadOverview() {
       setRefreshing(true);
-      setError('');
+      setOverviewError('');
+      setHistoryError('');
+      setLatestReadingsNotice('');
       setDevices([]);
       setLatestReadingsByDevice({});
       setSelectedDeviceId('');
@@ -153,16 +157,28 @@ export default function DashboardPage() {
           deviceItems.some((device) => device.id === currentValue) ? currentValue : deviceItems[0]?.id ?? ''
         ));
 
-        const latestEntries = await Promise.all(
+        const latestEntries = await Promise.allSettled(
           deviceItems.map(async (device) => [device.id, await getLatestReading(selectedOrganizationId, device.id)])
         );
 
         if (!cancelled) {
-          setLatestReadingsByDevice(Object.fromEntries(latestEntries));
+          const resolvedEntries = latestEntries.map((result, index) => (
+            result.status === 'fulfilled'
+              ? result.value
+              : [deviceItems[index].id, null]
+          ));
+          const hasLatestReadingError = latestEntries.some((result) => result.status === 'rejected');
+
+          setLatestReadingsByDevice(Object.fromEntries(resolvedEntries));
+          setLatestReadingsNotice(
+            hasLatestReadingError
+              ? 'Some latest readings are temporarily unavailable. Device history remains available when the collection service responds.'
+              : ''
+          );
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(getApiErrorMessage(loadError, 'Unable to load farms, fields, devices, and latest readings.'));
+          setOverviewError(getApiErrorMessage(loadError, 'Unable to load farms, fields, and devices.'));
         }
       } finally {
         if (!cancelled) {
@@ -190,6 +206,7 @@ export default function DashboardPage() {
 
     async function loadHistory() {
       setHistoryLoading(true);
+      setHistoryError('');
 
       try {
         const page = await getReadingHistory(selectedOrganizationId, selectedDeviceId);
@@ -206,7 +223,7 @@ export default function DashboardPage() {
         });
       } catch (loadError) {
         if (!cancelled) {
-          setError(getApiErrorMessage(loadError, 'Unable to load reading history.'));
+          setHistoryError(getApiErrorMessage(loadError, 'Unable to load reading history for the selected device.'));
         }
       } finally {
         if (!cancelled) {
@@ -246,9 +263,15 @@ export default function DashboardPage() {
       )}
     >
       <>
-        {error ? (
+        {overviewError ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-            {error}
+            {overviewError}
+          </div>
+        ) : null}
+
+        {latestReadingsNotice ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            {latestReadingsNotice}
           </div>
         ) : null}
 
@@ -404,6 +427,12 @@ export default function DashboardPage() {
             ? `Recent persisted readings for device ${devices.find((device) => device.id === selectedDeviceId)?.deviceIdentifier || selectedDeviceId}`
             : 'Select a device to inspect its history.'}
         >
+          {historyError ? (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+              {historyError}
+            </div>
+          ) : null}
+
           <DataTable
             columns={[
               { label: 'Recorded At', key: (reading) => formatTimestamp(reading.recordedAt) },

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DASHBOARD_DATA_UPDATED_EVENT,
   getApiErrorMessage,
-  getDashboardAnalytics
+  getLegacyDashboardAnalytics
 } from '../lib/api';
 
 const formatTimestamp = (value) => {
@@ -32,7 +32,7 @@ function Analytics() {
     try {
       setLoading(true);
       setError('');
-      const data = await getDashboardAnalytics();
+      const data = await getLegacyDashboardAnalytics();
       setAnalytics(data);
     } catch (fetchError) {
       setError(getApiErrorMessage(fetchError, 'Unable to load analytics data.'));
