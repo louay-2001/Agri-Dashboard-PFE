@@ -213,7 +213,7 @@ export default function LoginPage() {
       )}
     >
       {feedback.text ? (
-        <div className={`rounded-2xl border px-4 py-3 text-sm ${
+        <div className={`animate-fade-up rounded-[24px] border px-4 py-3 text-sm shadow-sm ${
           feedback.type === 'error'
             ? 'border-red-200 bg-red-50 text-red-700'
             : 'border-blue-200 bg-blue-50 text-blue-700'
@@ -222,7 +222,7 @@ export default function LoginPage() {
         </div>
       ) : null}
 
-      <form onSubmit={handleLogin} className="space-y-4">
+      <form onSubmit={handleLogin} className="surface-card rounded-[26px] p-5 space-y-5">
         <div>
           <Label htmlFor="email">Email</Label>
           <Input

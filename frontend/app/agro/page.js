@@ -713,10 +713,10 @@ export default function AgroPage() {
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Organizations" value={organizations.length} accent="bg-green-500" />
-          <MetricCard label="Farms" value={farms.length} accent="bg-emerald-500" />
-          <MetricCard label="Fields" value={fields.length} accent="bg-lime-500" />
-          <MetricCard label="Plans" value={subscriptionPlans.length} accent="bg-teal-500" />
+          <MetricCard label="Organizations" value={organizations.length} helper="Top-level tenants" accent="bg-green-500" loading={loading} animationDelayClass="animate-fade-up-delay-1" />
+          <MetricCard label="Farms" value={farms.length} helper="Operational sites" accent="bg-emerald-500" loading={contextLoading && !farms.length} animationDelayClass="animate-fade-up-delay-2" />
+          <MetricCard label="Fields" value={fields.length} helper="Managed cultivation zones" accent="bg-lime-500" loading={contextLoading && !fields.length} animationDelayClass="animate-fade-up-delay-3" />
+          <MetricCard label="Plans" value={subscriptionPlans.length} helper="Subscription catalog" accent="bg-teal-500" loading={loading} animationDelayClass="animate-fade-up-delay-4" />
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -728,7 +728,7 @@ export default function AgroPage() {
             ) : null}
           >
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-              <form onSubmit={onOrganizationSave} className="space-y-4">
+              <form onSubmit={onOrganizationSave} className="surface-card rounded-[26px] p-5 space-y-4">
                 <div>
                   <Label htmlFor="organizationName">Organization Name</Label>
                   <Input id="organizationName" value={organization.name} onChange={handleOrganizationNameChange} placeholder="Enter organization name" disabled={!organizationWriteAllowed || savingOrg || deletingOrg} className={inputErrorClass(organizationErrors.name)} />
@@ -794,7 +794,7 @@ export default function AgroPage() {
             ) : null}
           >
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-              <form onSubmit={onPlanSave} className="space-y-4">
+              <form onSubmit={onPlanSave} className="surface-card rounded-[26px] p-5 space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <Label htmlFor="planCode">Plan Code</Label>
@@ -872,7 +872,7 @@ export default function AgroPage() {
             ) : null}
           >
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-              <form onSubmit={onFarmSave} className="space-y-4">
+              <form onSubmit={onFarmSave} className="surface-card rounded-[26px] p-5 space-y-4">
                 <div>
                   <Label htmlFor="farmOrganization">Organization</Label>
                   <Input id="farmOrganization" value={currentOrganization?.name || ''} placeholder="Select organization first" disabled />
@@ -934,7 +934,7 @@ export default function AgroPage() {
           }
         >
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-            <form onSubmit={onFieldSave} className="space-y-4">
+            <form onSubmit={onFieldSave} className="surface-card rounded-[26px] p-5 space-y-4">
               <div>
                 <Label htmlFor="fieldFarmId">Farm</Label>
                 <Select id="fieldFarmId" value={field.farmId} onChange={(event) => handleFieldChange('farmId', event.target.value)} disabled={!agroWriteAllowed || !selectedOrganizationId || !farms.length || savingField || deletingField} className={inputErrorClass(fieldErrors.farmId)}>

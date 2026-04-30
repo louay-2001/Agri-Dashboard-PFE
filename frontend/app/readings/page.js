@@ -35,6 +35,17 @@ const formatMeasurement = (value, suffix = '') => {
   return `${Number(value).toFixed(1)}${suffix}`;
 };
 
+const ReadingSkeletonGrid = () => (
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    {Array.from({ length: 5 }).map((_, index) => (
+      <div key={index} className="reading-stat-card">
+        <div className="skeleton-block h-3 w-24 rounded-full" />
+        <div className="skeleton-block mt-4 h-8 w-24 rounded-2xl" />
+      </div>
+    ))}
+  </div>
+);
+
 export default function ReadingsPage() {
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState('');
@@ -359,10 +370,10 @@ export default function ReadingsPage() {
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Organizations" value={organizations.length} accent="bg-green-500" />
-          <MetricCard label="Farms" value={farms.length} accent="bg-emerald-500" />
-          <MetricCard label="Fields" value={fields.length} accent="bg-lime-500" />
-          <MetricCard label="Visible Devices" value={visibleDevices.length} accent="bg-teal-500" />
+          <MetricCard label="Organizations" value={organizations.length} helper="Authorized tenants" accent="bg-green-500" loading={pageLoading} animationDelayClass="animate-fade-up-delay-1" />
+          <MetricCard label="Farms" value={farms.length} helper="Agronomic sites in view" accent="bg-emerald-500" loading={filtersLoading && !farms.length} animationDelayClass="animate-fade-up-delay-2" />
+          <MetricCard label="Fields" value={fields.length} helper="Filtered operational fields" accent="bg-lime-500" loading={filtersLoading && !fields.length} animationDelayClass="animate-fade-up-delay-3" />
+          <MetricCard label="Visible Devices" value={visibleDevices.length} helper="Telemetry sources in scope" accent="bg-teal-500" loading={filtersLoading && !devices.length} animationDelayClass="animate-fade-up-delay-4" />
         </div>
 
         <SectionCard title="Scope" subtitle="Choose the hierarchy level and device you want to monitor.">
@@ -456,7 +467,7 @@ export default function ReadingsPage() {
           </div>
 
           {selectedOrganization ? (
-            <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
               Current organization: {selectedOrganization.name}
             </p>
           ) : null}
@@ -468,30 +479,30 @@ export default function ReadingsPage() {
             subtitle={selectedDeviceId ? 'Most recent persisted reading for the selected device.' : 'Select a device to inspect its latest reading.'}
           >
             {!selectedDeviceId ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">No device selected yet.</p>
+              <div className="empty-state-panel text-sm text-neutral-500 dark:text-neutral-400">No device selected yet.</div>
             ) : historyLoading ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading readings...</p>
+              <ReadingSkeletonGrid />
             ) : !latestReading ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">No reading is available yet for this device.</p>
+              <div className="empty-state-panel text-sm text-neutral-500 dark:text-neutral-400">No reading is available yet for this device.</div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                <div className="reading-stat-card">
                   <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Temperature</p>
                   <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.temperature, ' C')}</p>
                 </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                <div className="reading-stat-card">
                   <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Humidity</p>
                   <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.humidity, '%')}</p>
                 </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                <div className="reading-stat-card">
                   <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Soil Moisture</p>
                   <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.soilMoisture, '%')}</p>
                 </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                <div className="reading-stat-card">
                   <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Battery Level</p>
                   <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.batteryLevel, '%')}</p>
                 </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                <div className="reading-stat-card sm:col-span-2">
                   <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Recorded At</p>
                   <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">{formatTimestamp(latestReading.recordedAt)}</p>
                 </div>
@@ -510,7 +521,7 @@ export default function ReadingsPage() {
                 { label: 'Humidity', key: (reading) => formatMeasurement(reading.humidity, '%') },
                 { label: 'Soil Moisture', key: (reading) => formatMeasurement(reading.soilMoisture, '%') },
                 { label: 'Battery', key: (reading) => formatMeasurement(reading.batteryLevel, '%') },
-                { label: 'Topic', key: 'mqttTopic' },
+                { label: 'Topic', key: 'mqttTopic', cellClassName: 'topic-cell font-mono text-neutral-500 dark:text-neutral-400' },
               ]}
               rows={readingHistory}
               getRowKey={(reading) => reading.id}

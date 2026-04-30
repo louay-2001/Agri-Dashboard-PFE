@@ -51,6 +51,29 @@ const formatMeasurement = (value, suffix = '') => {
 };
 
 const inputErrorClass = (message) => (message ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : '');
+const getStatusBadgeClass = (status) => {
+  switch (String(status || '').toUpperCase()) {
+    case 'ACTIVE':
+      return 'status-badge status-active';
+    case 'INACTIVE':
+      return 'status-badge status-inactive';
+    case 'SUSPENDED':
+      return 'status-badge status-suspended';
+    default:
+      return 'status-badge status-unknown';
+  }
+};
+
+const ReadingSkeletonGrid = () => (
+  <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    {Array.from({ length: 5 }).map((_, index) => (
+      <div key={index} className="reading-stat-card">
+        <div className="skeleton-block h-3 w-24 rounded-full" />
+        <div className="skeleton-block mt-4 h-8 w-24 rounded-2xl" />
+      </div>
+    ))}
+  </div>
+);
 
 export default function DevicesPage() {
   const [organizations, setOrganizations] = useState([]);
@@ -578,7 +601,7 @@ export default function DevicesPage() {
           </div>
         ) : null}
 
-        <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <section className="surface-card animate-fade-up overflow-hidden rounded-[30px] p-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div>
               <Label htmlFor="organizationId">Organization</Label>
@@ -616,14 +639,14 @@ export default function DevicesPage() {
               </Select>
             </div>
 
-            <div className="rounded-2xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800">
+            <div className="reading-stat-card">
               <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Visible Fields</p>
               <p className="mt-2 text-2xl font-semibold">
                 {fieldsLoading ? '...' : fields.length}
               </p>
             </div>
 
-            <div className="rounded-2xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800">
+            <div className="reading-stat-card">
               <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Visible Devices</p>
               <p className="mt-2 text-2xl font-semibold">
                 {pageLoading ? '...' : visibleDevices.length}
@@ -633,17 +656,19 @@ export default function DevicesPage() {
         </section>
 
         {!organizations.length && !pageLoading ? (
-          <section className="rounded-3xl border border-dashed border-neutral-300 bg-white px-6 py-10 text-center shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+          <section className="empty-state-panel surface-card text-center">
+            <div>
             <h2 className="text-xl font-semibold">No organizations available</h2>
             <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
               Create an organization in the agro service first, then come back here to register devices.
             </p>
+            </div>
           </section>
         ) : null}
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="space-y-6">
-            <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <section className="surface-card animate-fade-up overflow-hidden rounded-[30px] p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-semibold">
@@ -662,7 +687,7 @@ export default function DevicesPage() {
                 ) : null}
               </div>
 
-              <form onSubmit={handleSave} className="mt-6 space-y-4">
+              <form onSubmit={handleSave} className="surface-card mt-6 space-y-4 rounded-[26px] p-5">
                 <div>
                   <Label htmlFor="selectedOrganizationName">Organization</Label>
                   <Input
@@ -737,7 +762,7 @@ export default function DevicesPage() {
               </form>
             </section>
 
-            <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <section className="surface-card animate-fade-up animate-fade-up-delay-1 overflow-hidden rounded-[30px] p-5">
               <h2 className="text-xl font-semibold">Latest Sensor Reading</h2>
               <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
                 {selectedDevice
@@ -746,36 +771,34 @@ export default function DevicesPage() {
               </p>
 
               {!selectedDevice ? (
-                <p className="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
+                <div className="empty-state-panel mt-6 text-sm text-neutral-500 dark:text-neutral-400">
                   No device selected yet.
-                </p>
+                </div>
               ) : readingLoading ? (
-                <p className="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
-                  Loading latest reading...
-                </p>
+                <ReadingSkeletonGrid />
               ) : !latestReading ? (
-                <p className="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
+                <div className="empty-state-panel mt-6 text-sm text-neutral-500 dark:text-neutral-400">
                   No reading is available yet for this device.
-                </p>
+                </div>
               ) : (
                 <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-800">
+                  <div className="reading-stat-card">
                     <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Temperature</p>
                     <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.temperature, ' C')}</p>
                   </div>
-                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-800">
+                  <div className="reading-stat-card">
                     <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Humidity</p>
                     <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.humidity, '%')}</p>
                   </div>
-                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-800">
+                  <div className="reading-stat-card">
                     <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Soil Moisture</p>
                     <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.soilMoisture, '%')}</p>
                   </div>
-                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-800">
+                  <div className="reading-stat-card">
                     <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Battery Level</p>
                     <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.batteryLevel, '%')}</p>
                   </div>
-                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-800">
+                  <div className="reading-stat-card sm:col-span-2">
                     <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Recorded At</p>
                     <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
                       {formatTimestamp(latestReading.recordedAt)}
@@ -786,7 +809,7 @@ export default function DevicesPage() {
             </section>
           </div>
 
-          <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <section className="surface-card animate-fade-up animate-fade-up-delay-2 overflow-hidden rounded-[30px] p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold">Devices</h2>
@@ -796,33 +819,34 @@ export default function DevicesPage() {
                     : 'Showing all devices in the selected organization.'}
                 </p>
               </div>
-              <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+              <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
                 {visibleDevices.length} device{visibleDevices.length === 1 ? '' : 's'}
               </span>
             </div>
 
-            <div className="mt-6 overflow-x-auto">
+            <div className="mt-6 overflow-hidden rounded-[24px] border border-neutral-200/80 bg-white/70 dark:border-neutral-800/80 dark:bg-neutral-950/50">
+              <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="border-b border-neutral-200 text-left dark:border-neutral-800">
+                <thead className="border-b border-neutral-200/90 bg-neutral-50/85 text-left dark:border-neutral-800/80 dark:bg-neutral-900/75">
                   <tr>
-                    <th className="py-3 pr-4 font-semibold">Identifier</th>
-                    <th className="py-3 pr-4 font-semibold">Farm</th>
-                    <th className="py-3 pr-4 font-semibold">Field</th>
-                    <th className="py-3 pr-4 font-semibold">Status</th>
-                    <th className="py-3 pr-4 font-semibold">Firmware</th>
-                    <th className="py-3 pr-4 font-semibold">Created</th>
+                    <th className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">Identifier</th>
+                    <th className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">Farm</th>
+                    <th className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">Field</th>
+                    <th className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">Status</th>
+                    <th className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">Firmware</th>
+                    <th className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">Created</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageLoading ? (
                     <tr>
-                      <td colSpan="6" className="py-6 text-center text-neutral-500 dark:text-neutral-400">
+                      <td colSpan="6" className="px-4 py-10 text-center text-neutral-500 dark:text-neutral-400">
                         Loading devices...
                       </td>
                     </tr>
                   ) : !visibleDevices.length ? (
                     <tr>
-                      <td colSpan="6" className="py-6 text-center text-neutral-500 dark:text-neutral-400">
+                      <td colSpan="6" className="px-4 py-10 text-center text-neutral-500 dark:text-neutral-400">
                         No devices found for the current selection.
                       </td>
                     </tr>
@@ -840,22 +864,23 @@ export default function DevicesPage() {
                             setFormErrors({});
                             setFeedback({ type: '', text: '' });
                           }}
-                          className={`cursor-pointer border-b border-neutral-100 transition hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800/60 ${
-                            selectedDeviceId === device.id ? 'bg-green-50 dark:bg-green-950/20' : ''
+                          className={`cursor-pointer border-b border-neutral-100/90 transition duration-200 hover:bg-emerald-50/70 dark:border-neutral-800 dark:hover:bg-emerald-950/20 ${
+                            selectedDeviceId === device.id ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''
                           }`}
                         >
-                          <td className="py-3 pr-4 font-medium">{device.deviceIdentifier}</td>
-                          <td className="py-3 pr-4">{farm?.name || 'N/A'}</td>
-                          <td className="py-3 pr-4">{field?.name || device.fieldId}</td>
-                          <td className="py-3 pr-4">{device.status}</td>
-                          <td className="py-3 pr-4">{device.firmwareVersion || 'N/A'}</td>
-                          <td className="py-3 pr-4">{formatTimestamp(device.createdAt)}</td>
+                          <td className="px-4 py-3.5 font-medium">{device.deviceIdentifier}</td>
+                          <td className="px-4 py-3.5">{farm?.name || 'N/A'}</td>
+                          <td className="px-4 py-3.5">{field?.name || device.fieldId}</td>
+                          <td className="px-4 py-3.5"><span className={getStatusBadgeClass(device.status)}>{device.status || 'Unknown'}</span></td>
+                          <td className="px-4 py-3.5">{device.firmwareVersion || 'N/A'}</td>
+                          <td className="px-4 py-3.5">{formatTimestamp(device.createdAt)}</td>
                         </tr>
                       );
                     })
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           </section>
         </div>

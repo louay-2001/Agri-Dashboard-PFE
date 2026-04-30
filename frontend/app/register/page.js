@@ -277,7 +277,7 @@ export default function RegisterPage() {
       )}
     >
       {feedback.text ? (
-        <div className={`rounded-2xl border px-4 py-3 text-sm ${
+        <div className={`animate-fade-up rounded-[24px] border px-4 py-3 text-sm shadow-sm ${
           feedback.type === 'error'
             ? 'border-red-200 bg-red-50 text-red-700'
             : 'border-green-200 bg-green-50 text-green-700'
@@ -286,7 +286,7 @@ export default function RegisterPage() {
         </div>
       ) : null}
 
-      <form onSubmit={handleRegister} className="grid gap-4 md:grid-cols-2">
+      <form onSubmit={handleRegister} className="surface-card grid gap-4 rounded-[26px] p-5 md:grid-cols-2">
         <div className="md:col-span-2">
           <Label htmlFor="email">Email</Label>
           <Input
@@ -375,7 +375,7 @@ export default function RegisterPage() {
             {formErrors.organizationId ? <p className="mt-1 text-xs text-red-600">{formErrors.organizationId}</p> : null}
             {!formErrors.organizationId && organizationsError ? <p className="mt-1 text-xs text-red-600">{organizationsError}</p> : null}
             {!formErrors.organizationId && !organizationsLoading && !organizationsError && !organizations.length ? (
-              <p className="mt-1 text-xs text-amber-700">{EMPTY_ORGANIZATIONS_MESSAGE}</p>
+              <p className="mt-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">{EMPTY_ORGANIZATIONS_MESSAGE}</p>
             ) : null}
           </div>
         ) : null}
