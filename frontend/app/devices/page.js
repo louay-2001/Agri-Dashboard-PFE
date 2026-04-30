@@ -772,6 +772,10 @@ export default function DevicesPage() {
                     <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.soilMoisture, '%')}</p>
                   </div>
                   <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-800">
+                    <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Battery Level</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.batteryLevel, '%')}</p>
+                  </div>
+                  <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-800">
                     <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Recorded At</p>
                     <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
                       {formatTimestamp(latestReading.recordedAt)}

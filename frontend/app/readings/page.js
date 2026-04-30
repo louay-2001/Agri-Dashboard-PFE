@@ -488,6 +488,10 @@ export default function ReadingsPage() {
                   <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.soilMoisture, '%')}</p>
                 </div>
                 <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+                  <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Battery Level</p>
+                  <p className="mt-2 text-2xl font-semibold">{formatMeasurement(latestReading.batteryLevel, '%')}</p>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
                   <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Recorded At</p>
                   <p className="mt-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">{formatTimestamp(latestReading.recordedAt)}</p>
                 </div>
@@ -505,6 +509,7 @@ export default function ReadingsPage() {
                 { label: 'Temperature', key: (reading) => formatMeasurement(reading.temperature, ' C') },
                 { label: 'Humidity', key: (reading) => formatMeasurement(reading.humidity, '%') },
                 { label: 'Soil Moisture', key: (reading) => formatMeasurement(reading.soilMoisture, '%') },
+                { label: 'Battery', key: (reading) => formatMeasurement(reading.batteryLevel, '%') },
                 { label: 'Topic', key: 'mqttTopic' },
               ]}
               rows={readingHistory}

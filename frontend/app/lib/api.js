@@ -85,6 +85,29 @@ const requestData = async (config) => {
   return response.data;
 };
 
+const normalizeReading = (reading) => {
+  if (!reading || typeof reading !== 'object') {
+    return reading;
+  }
+
+  return {
+    ...reading,
+    soilMoisture: reading.soilMoisture ?? reading.soil_moisture ?? null,
+    batteryLevel: reading.batteryLevel ?? reading.battery_level ?? null,
+  };
+};
+
+const normalizeReadingPage = (page) => {
+  if (!page || typeof page !== 'object') {
+    return page;
+  }
+
+  return {
+    ...page,
+    content: Array.isArray(page.content) ? page.content.map(normalizeReading) : [],
+  };
+};
+
 const buildOrganizationParams = (organizationId, params = {}) => ({
   organizationId,
   ...params,
@@ -308,7 +331,7 @@ export const deleteDevice = (organizationId, id) => requestData({
 });
 
 // --- Sensor Reading API ---
-export const getReadings = (organizationId, deviceId, params = {}) => requestData({
+export const getReadings = async (organizationId, deviceId, params = {}) => normalizeReadingPage(await requestData({
   method: 'get',
   url: '/api/collection/readings',
   params: buildOrganizationParams(organizationId, {
@@ -316,17 +339,17 @@ export const getReadings = (organizationId, deviceId, params = {}) => requestDat
     ...DEFAULT_READING_PAGE_PARAMS,
     ...params,
   }),
-});
+}));
 
 export const getReadingHistory = getReadings;
 
 export const getLatestReading = async (organizationId, deviceId) => {
   try {
-    return await requestData({
+    return normalizeReading(await requestData({
       method: 'get',
       url: '/api/collection/readings/latest',
       params: buildOrganizationParams(organizationId, { deviceId }),
-    });
+    }));
   } catch (error) {
     if (error?.response?.status === 404) {
       return null;
